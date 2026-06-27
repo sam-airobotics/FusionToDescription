@@ -1,0 +1,12 @@
+{
+  "autodeskProduct": "Fusion",
+  "type": "addin",
+  "id": "fusiontodescription",
+  "author": "Sameer Patwardhan",
+  "description": {
+    "": "Fusion 360 to ROS2 Description Package Exporter"
+  },
+  "version": "0.1.0",
+  "runOnStartup": false,
+  "supportedOS": "windows|mac|linux"
+}
