@@ -4,7 +4,7 @@ import traceback
 try:
     from .commands import export_command
 except ImportError:
-    from .commands import export_command
+    from commands import export_command
 
 handlers = []
 
