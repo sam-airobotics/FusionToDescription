@@ -7,16 +7,16 @@ Handles when the user clicks the export/OK button.
 import adsk.core
 import traceback
 
-from ..helpers.input_utils import (
+from .helpers.input_utils import (
     get_string_value,
     get_bool_value,
     get_selected_item
 )
 
-from ...exporter.export_config import ExportConfig
-from ...exporter.export_manager import ExportManager
-from ...utils.validate import Validator
-from ...utils.logger import Logger
+from ..exporter.export_config import ExportConfig
+from ..exporter.export_manager import ExportManager
+from ..utils.validate import Validator
+from ..utils.logger import Logger
 
 
 class ExecuteHandler(adsk.core.CommandEventHandler):

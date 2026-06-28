@@ -95,7 +95,6 @@ def start():
             return
 
         control = panel.controls.addCommand(cmd_def)
-        control.isPromoted = True
 
         Logger.info(f"Export command '{config.COMMAND_NAME}' registered successfully")
 

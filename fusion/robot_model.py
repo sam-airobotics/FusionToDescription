@@ -8,12 +8,12 @@ all Fusion parsing modules.
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from .component_parser import ComponentParser
+from .component_parser import get_component_data
 from .joint_parser import JointParser
 from .transform_parser import TransformParser
-from .collision_detector import CollisionDetector
-from .mass_extractor import MassExtractor
-from .inertia_calculator import InertiaCalculator
+from .collision_detector import detect_collision_shape
+from .mass_extractor import get_mass_data
+from .inertia_calculator import calculate_inertia
 from .material_parser import MaterialParser
 from .mesh_exporter import MeshExporter
 
@@ -163,12 +163,19 @@ class RobotModelBuilder:
     def build(self):
 
         # ----------------------------------------------
-        # Components
+        # Components (name, mesh filename, collision shape)
         # ----------------------------------------------
 
-        component_parser = ComponentParser()
+        component_data = get_component_data()
 
-        self.robot.links = component_parser.parse()
+        self.robot.links = [
+            Link(
+                name=item["name"],
+                mesh=item["mesh"],
+                collision=item["collision"]
+            )
+            for item in component_data
+        ]
 
         # ----------------------------------------------
         # Joints
@@ -176,7 +183,19 @@ class RobotModelBuilder:
 
         joint_parser = JointParser()
 
-        self.robot.joints = joint_parser.parse()
+        joint_dicts = joint_parser.parse()
+
+        self.robot.joints = [
+            Joint(
+                name=j["name"],
+                joint_type=j["type"],
+                parent=j["parent"],
+                child=j["child"],
+                origin=j["origin"],
+                axis=j["axis"]
+            )
+            for j in joint_dicts
+        ]
 
         # ----------------------------------------------
         # Transforms
@@ -184,31 +203,52 @@ class RobotModelBuilder:
 
         transform_parser = TransformParser()
 
-        transform_parser.update(self.robot)
+        transforms = transform_parser.parse()
 
-        # ----------------------------------------------
-        # Collision
-        # ----------------------------------------------
+        for link in self.robot.links:
 
-        collision = CollisionDetector()
+            if link.name in transforms:
 
-        collision.update(self.robot)
+                link.origin = transforms[link.name]
 
         # ----------------------------------------------
         # Mass Properties
         # ----------------------------------------------
 
-        mass = MassExtractor()
+        mass_data = get_mass_data()
 
-        mass.update(self.robot)
+        mass_by_name = {
+            item["name"]: item["mass"]
+            for item in mass_data
+        }
+
+        for link in self.robot.links:
+
+            link.mass = mass_by_name.get(link.name, 0.0)
 
         # ----------------------------------------------
         # Inertia
         # ----------------------------------------------
 
-        inertia = InertiaCalculator()
+        for link in self.robot.links:
 
-        inertia.update(self.robot)
+            shape = link.collision.get("shape", "Box")
+
+            try:
+
+                link.inertia = calculate_inertia(
+                    shape,
+                    link.mass,
+                    link.collision
+                )
+
+            except Exception:
+
+                link.inertia = {
+                    "ixx": 0.0,
+                    "iyy": 0.0,
+                    "izz": 0.0
+                }
 
         # ----------------------------------------------
         # Materials
@@ -228,6 +268,6 @@ class RobotModelBuilder:
 
         )
 
-        mesh.update(self.robot)
+        mesh.export_all()
 
         return self.robot

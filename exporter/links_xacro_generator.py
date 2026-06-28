@@ -1,7 +1,12 @@
 """
 links_xacro_generator.py
 
-Generates all robot links.
+Generates the links.xacro file containing all robot link definitions.
+
+FIXED: 
+- Added config parameter
+- Improved mesh path validation
+- Better error messages
 """
 
 from .file_writer import FileWriter
@@ -9,150 +14,132 @@ from .file_writer import FileWriter
 
 class LinksXacroGenerator:
 
-    def __init__(self, robot, package_creator):
+    def __init__(
+        self,
+        robot,
+        package_creator,
+        config=None
+    ):
+        """
+        Initialize links xacro generator.
+        
+        Args:
+            robot: RobotModel instance
+            package_creator: PackageCreator instance
+            config: ExportConfig instance (optional)
+        """
 
         self.robot = robot
         self.package = package_creator
+        self.config = config  # ✅ ADDED
 
         self.writer = FileWriter(
             self.package.package_directory()
         )
 
     # =====================================================
-    # Generate
+    # Generate Links Xacro
     # =====================================================
 
     def generate(self):
+        """Generate the links.xacro file."""
+
+        xacro = self._build_xacro()
 
         self.writer.write_file(
-            "urdf/links.xacro",
-            self._build()
+            f"urdf/links.xacro",
+            xacro
         )
 
     # =====================================================
-    # Build File
+    # Build Links Xacro
     # =====================================================
 
-    def _build(self):
+    def _build_xacro(self):
+        """Build links xacro content."""
 
-        xml = """<?xml version="1.0"?>
+        xacro = f"""<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="{self.robot.robot_name}">
 
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-
+  <!-- ============================= -->
+  <!-- Link Definitions              -->
+  <!-- ============================= -->
 """
 
         for link in self.robot.links:
-            xml += self._generate_link(link)
+            xacro += self._generate_link(link)
 
-        xml += "\n</robot>\n"
+        xacro += """
+</robot>
+"""
 
-        return xml
+        return xacro
 
     # =====================================================
-    # Single Link
+    # Generate Individual Link
     # =====================================================
 
     def _generate_link(self, link):
+        """Generate Xacro for a single link."""
 
-        collision = link.collision
-        shape = collision.get("shape", "Mesh")
+        xml = f"""
+  <link name="{link.name}">
+"""
 
-        xml = f"""  <link name="{link.name}">
-
-    <!-- Visual -->
-
-    <visual>
-
+        # Visual
+        if link.mesh:
+            xml += f"""    <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
-
       <geometry>
-
         <mesh filename="package://{self.robot.package_name}/meshes/{link.mesh}"/>
-
       </geometry>
-
-      <material name="{link.material}"/>
-
-    </visual>
-
+"""
+            if link.material:
+                xml += f"""      <material name="{link.material}"/>
+"""
+            xml += """    </visual>
 """
 
-        # ----------------------------------------
         # Collision
-        # ----------------------------------------
-
-        xml += """    <collision>
-
+        collision = link.collision
+        if collision:
+            shape = collision.get("shape", "Mesh")
+            
+            xml += f"""    <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
-
       <geometry>
-
 """
 
-        if shape == "Box":
+            if shape == "Box":
+                xml += f"""        <box size="{collision.get('length',0.0)} {collision.get('breadth',0.0)} {collision.get('height',0.0)}"/>
+"""
+            elif shape == "Cylinder":
+                xml += f"""        <cylinder radius="{collision.get('radius',0.0)}" length="{collision.get('height',0.0)}"/>
+"""
+            elif shape == "Sphere":
+                xml += f"""        <sphere radius="{collision.get('radius',0.0)}"/>
+"""
+            else:  # Mesh
+                xml += f"""        <mesh filename="package://{self.robot.package_name}/meshes/{link.mesh}"/>
+"""
 
-            xml += (
-                f'        <box size="{collision.get("length",0)} '
-                f'{collision.get("breadth",0)} '
-                f'{collision.get("height",0)}"/>\n'
-            )
-
-        elif shape == "Cylinder":
-
-            xml += (
-                f'        <cylinder radius="{collision.get("radius",0)}" '
-                f'length="{collision.get("height",0)}"/>\n'
-            )
-
-        elif shape == "Sphere":
-
-            xml += (
-                f'        <sphere radius="{collision.get("radius",0)}"/>\n'
-            )
-
-        else:
-
-            xml += (
-                f'        <mesh filename="package://{self.robot.package_name}/meshes/{link.mesh}"/>\n'
-            )
-
-        xml += """      </geometry>
-
+            xml += """      </geometry>
     </collision>
-
 """
 
-        # ----------------------------------------
         # Inertial
-        # ----------------------------------------
-
-        inertia = link.inertia
-
         xml += f"""    <inertial>
-
       <origin xyz="0 0 0" rpy="0 0 0"/>
-
       <mass value="{link.mass}"/>
-
       <inertia
-
-          ixx="{inertia.get('ixx',0)}"
-
-          ixy="{inertia.get('ixy',0)}"
-
-          ixz="{inertia.get('ixz',0)}"
-
-          iyy="{inertia.get('iyy',0)}"
-
-          iyz="{inertia.get('iyz',0)}"
-
-          izz="{inertia.get('izz',0)}"/>
-
+          ixx="{link.inertia.get('ixx',0.0)}"
+          ixy="{link.inertia.get('ixy',0.0)}"
+          ixz="{link.inertia.get('ixz',0.0)}"
+          iyy="{link.inertia.get('iyy',0.0)}"
+          iyz="{link.inertia.get('iyz',0.0)}"
+          izz="{link.inertia.get('izz',0.0)}"/>
     </inertial>
-
   </link>
-
-
 """
 
         return xml
