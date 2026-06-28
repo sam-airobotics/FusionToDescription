@@ -1,11 +1,6 @@
 import adsk.core
 import traceback
 
-try:
-    from commands import export_command
-except ImportError:
-    from .commands import export_command
-
 handlers = []
 
 # def run(context):
@@ -20,6 +15,7 @@ handlers = []
 def run(context):
 
     try:
+        from .commands import export_command
         export_command.start()
 
     except Exception as e:
@@ -36,6 +32,7 @@ def run(context):
 def stop(context):
 
     try:
+        from .commands import export_command
         export_command.stop()
 
     except Exception as e:

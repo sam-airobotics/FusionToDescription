@@ -7,7 +7,7 @@ Handles dynamic UI updates when user changes input values.
 import adsk.core
 import traceback
 
-from ..helpers.input_utils import (
+from .helpers.input_utils import (
     get_bool_value,
     get_selected_item,
     set_visibility,
@@ -16,8 +16,8 @@ from ..helpers.input_utils import (
 
 from .ui import ui_context
 
-from ...fusion.component_parser import get_component_data
-from ...fusion.inertia_calculator import calculate_inertia
+from ..fusion.component_parser import get_component_data
+from ..fusion.inertia_calculator import calculate_inertia
 
 
 class InputChangedHandler(adsk.core.InputChangedEventHandler):
