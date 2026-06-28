@@ -44,24 +44,22 @@ class CMakeGenerator:
 
         package = self.robot.package_name
 
-        return f"""
-                    cmake_minimum_required(VERSION 3.8)
+        return f"""cmake_minimum_required(VERSION 3.8)
+project({package})
 
-                    project({package})
+find_package(ament_cmake REQUIRED)
 
-                    find_package(ament_cmake REQUIRED)
+install(
+DIRECTORY
+config
+launch
+meshes
+rviz
+urdf
+worlds
+DESTINATION
+share/${{PROJECT_NAME}}
+)
 
-                    install(
-                        DIRECTORY
-                            config
-                            launch
-                            meshes
-                            rviz
-                            urdf
-                            worlds
-                        DESTINATION
-                            share/${{PROJECT_NAME}}
-                    )
-
-                    ament_package()
-                    """
+ament_package()
+"""
