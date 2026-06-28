@@ -1,7 +1,9 @@
 """
 robot_xacro_generator.py
 
-Generates the main robot Xacro file.
+Generates the main robot.urdf.xacro file from the RobotModel.
+
+FIXED: Added config parameter for future enhancements
 """
 
 from .file_writer import FileWriter
@@ -9,69 +11,88 @@ from .file_writer import FileWriter
 
 class RobotXacroGenerator:
 
-    def __init__(self, robot, package_creator):
+    def __init__(
+        self,
+        robot,
+        package_creator,
+        config=None
+    ):
+        """
+        Initialize robot xacro generator.
+        
+        Args:
+            robot: RobotModel instance
+            package_creator: PackageCreator instance
+            config: ExportConfig instance (optional)
+        """
 
         self.robot = robot
         self.package = package_creator
+        self.config = config  # ✅ ADDED: For future conditional generation
 
         self.writer = FileWriter(
             self.package.package_directory()
         )
 
     # =====================================================
-    # Generate
+    # Generate Main Robot Xacro
     # =====================================================
 
     def generate(self):
+        """Generate the main robot.urdf.xacro file."""
+
+        xacro = self._build_xacro()
 
         self.writer.write_file(
-            f"urdf/{self.robot.robot_name}.xacro",
-            self._build()
+            f"urdf/{self.robot.robot_name}.urdf.xacro",
+            xacro
         )
 
     # =====================================================
-    # Build Xacro
+    # Build Robot Xacro
     # =====================================================
 
-    def _build(self):
+    def _build_xacro(self):
+        """Build the main Xacro file content."""
 
         package = self.robot.package_name
+        robot_name = self.robot.robot_name
 
-        xml = f"""<?xml version="1.0"?>
+        xacro = f"""<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="{robot_name}">
 
-<robot
-    xmlns:xacro="http://www.ros.org/wiki/xacro"
-    name="{self.robot.robot_name}">
+  <!-- ============================= -->
+  <!-- Include Sub-Xacro Files      -->
+  <!-- ============================= -->
 
-  <!-- Materials -->
-  <xacro:include filename="package://{package}/urdf/materials.xacro"/>
-
-  <!-- Links -->
-  <xacro:include filename="package://{package}/urdf/links.xacro"/>
-
-  <!-- Joints -->
-  <xacro:include filename="package://{package}/urdf/joints.xacro"/>
+  <xacro:include filename="$(find {package})/urdf/materials.xacro"/>
+  <xacro:include filename="$(find {package})/urdf/links.xacro"/>
+  <xacro:include filename="$(find {package})/urdf/joints.xacro"/>
 """
 
-        # Optional Gazebo plugins
-        if getattr(self.robot, "generate_gazebo", False):
-
-            xml += f"""
-  <!-- Gazebo Plugins -->
-  <xacro:include filename="package://{package}/urdf/gazebo_plugins.xacro"/>
+        # ✅ ADDED: Conditional includes based on config
+        if self.config and self.config.generate_gazebo:
+            xacro += f"""  <xacro:include filename="$(find {package})/urdf/gazebo.xacro"/>
 """
 
-        # Optional ros2_control
-        if getattr(self.robot, "generate_control", False):
-
-            xml += f"""
-  <!-- ros2_control -->
-  <xacro:include filename="package://{package}/urdf/ros2_control.xacro"/>
+        if self.config and self.config.generate_ros2_control:
+            xacro += f"""  <!-- <xacro:include filename="$(find {package})/urdf/ros2_control.xacro"/> -->
 """
 
-        xml += """
+        xacro += """
+  <!-- ============================= -->
+  <!-- Root Link (base_link)         -->
+  <!-- ============================= -->
+
+  <link name="world"/>
+
+  <joint name="fixed" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
 
 </robot>
 """
 
-        return xml
+        return xacro
