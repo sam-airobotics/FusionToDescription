@@ -1,60 +1,120 @@
-<div align="center">
-<img align="center" src="resources/icons/Fusion2Description_Sticker.png" height="200px" width="200px"/>
-  
-# FusionToDescription
+# 🚀 FusionToDescription v0.1.0
 
-### Convert Autodesk Fusion 360 assemblies into ROS 2 robot descriptions.
+## Initial Public Release
 
-<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=24&pause=1500&center=true&vCenter=true&width=700&color=58A6FF&lines=Fusion+360+→+ROS+2+Robot+Description;Automatic+Mass+%26+Inertia;ROS+2+Simulation+Ready"/>
-
-</div>
+This version introduces a complete end-to-end workflow for exporting Autodesk Fusion 360 robot assemblies into ROS 2 description packages, with an intuitive user interface and automatic package generation.
 
 ---
 
-## 🚀 How to Use
+## ✨ What's New
 
-1. Open your robot assembly in **Fusion 360**.
-2. Launch **FusionToDescription** from **Scripts and Add-ins**.
-3. Enter the **Robot Name**.
-4. Select the **Download Location**.
-5. Choose the **Collision Type**:
-   - 🟦 Mesh Collision
-   - 🟨 Primitive Collision
-6. (Optional) Edit the **Mass** of each component.
-7. Select the **Sensors** to include.
-8. Enable **ROS 2 Control** if required.
-9. Click **Export**.
+### ✅ Complete Export Workflow
 
-> **Note:** The exporter automatically calculates the inertia tensor from the specified mass values.
+FusionToDescription now provides a complete export pipeline from Fusion 360 to ROS 2.
+
+* Robot package generation
+* Automatic URDF/Xacro creation
+* Mesh export
+* Launch file generation
+* RViz configuration
+* Gazebo integration
 
 ---
 
-## 📋 Assembly Guidelines
+## 🖥️ Redesigned User Interface
 
-- ✅ The root component must be named **`base_link`**.
-- ✅ Each component should contain **only bodies**.
-- ❌ Do not nest components inside other components.
-- ✅ Connect every component using **Joints**.
-- ✅ Every body must belong to a single component.
-- ✅ Fully constrain the assembly before exporting.
+The exporter now features a four-tab workflow for configuring every aspect of the robot before export.
 
----
+### 📁 General
 
-## 📦 Export Generates
+Configure the robot name and package export location.
 
-- 📦 Robot component hierarchy
-- ⚖️ User-defined mass values
-- 🧮 Automatically calculated inertia
-- 🛡️ Mesh or Primitive collision geometry
-- 🔌 Gazebo sensor plugins
-- 📡 `ros_gz_bridge` configuration for selected sensors
-- 🤖 ROS 2 Control plugins *(optional)*
-- 📄 Robot **Xacro** description ready for ROS 2 simulation
+<p align="center">
+<img src="https://github.com/user-attachments/assets/64d7088a-0df4-4868-8999-d734b322efc1" width="95%">
+</p>
 
 ---
 
-<div align="center">
+### ⚖️ Properties
 
-⭐ If you find this project useful, consider giving it a star!
+Edit component masses while FusionToDescription automatically computes the corresponding inertia tensors.
 
-</div>
+<p align="center">
+<img src="https://github.com/user-attachments/assets/20838993-53f1-423e-8d91-57416fa8c59b" width="95%">
+</p>
+
+---
+
+### 🎮 Simulation
+
+Configure simulation features including:
+
+* Gazebo plugins
+* ROS-GZ Bridge
+* Sensors
+* ROS 2 Control
+
+<p align="center">
+<img src="https://github.com/user-attachments/assets/ce7a0584-520b-4720-8a4d-b63445fea671" width="95%">
+</p>
+
+---
+
+### ⚙️ Advanced
+
+Additional export options for advanced ROS 2 workflows.
+
+<p align="center">
+<img src="https://github.com/user-attachments/assets/786cfe25-0585-4807-9189-20761f1086e6" width="95%">
+</p>
+
+---
+
+## 📦 Export Result
+
+A complete ROS 2 description package is generated automatically.
+
+<p align="center">
+<img src="https://github.com/user-attachments/assets/71ecfa46-278c-4e3f-9ab4-1984b865d32c" width="95%">
+</p>
+
+---
+
+## 📁 Export Location
+
+Generated packages are saved directly to the selected destination.
+
+<p align="center">
+<img src="https://github.com/user-attachments/assets/a2719525-de13-4f5d-835d-5cd502457a16" width="95%">
+</p>
+
+---
+
+## 🚀 Release Highlights
+
+* ✅ Fully functional FusionToDescription UI
+* ✅ Complete ROS 2 description package generation
+* ✅ Automatic inertia calculation
+* ✅ Editable mass properties
+* ✅ Mesh and primitive collision generation
+* ✅ Gazebo plugin generation
+* ✅ ROS-GZ Bridge configuration
+* ✅ Sensor integration
+* ✅ Optional ROS 2 Control support
+* ✅ Xacro-based package structure
+* ✅ Ready for ROS 2 simulation
+
+---
+
+## 🔜 Coming in the Next Release
+
+Development is currently focused on polishing the generated ROS 2 description package.
+
+Planned improvements include:
+
+- ✅ Resolving the remaining syntax issues in the exported package
+- 🎨 UI refinements and workflow enhancements
+- ⚡ Improved export reliability and validation
+- 🛠️ General bug fixes and performance improvements
+
+Stay tuned for the next release!
