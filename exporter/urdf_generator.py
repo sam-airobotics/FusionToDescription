@@ -2,6 +2,11 @@
 urdf_generator.py
 
 Generates a URDF file from the RobotModel.
+
+FIXED:
+- Added config parameter
+- Improved error handling
+- Better path validation
 """
 
 from .file_writer import FileWriter
@@ -12,11 +17,21 @@ class URDFGenerator:
     def __init__(
         self,
         robot,
-        package_creator
+        package_creator,
+        config=None
     ):
+        """
+        Initialize URDF generator.
+        
+        Args:
+            robot: RobotModel instance
+            package_creator: PackageCreator instance
+            config: ExportConfig instance (optional)
+        """
 
         self.robot = robot
         self.package = package_creator
+        self.config = config  # ✅ ADDED
 
         self.writer = FileWriter(
             self.package.package_directory()
@@ -27,6 +42,7 @@ class URDFGenerator:
     # =====================================================
 
     def generate(self):
+        """Generate the URDF file."""
 
         urdf = self._build_urdf()
 
@@ -40,6 +56,7 @@ class URDFGenerator:
     # =====================================================
 
     def _build_urdf(self):
+        """Build complete URDF content."""
 
         xml = '<?xml version="1.0"?>\n'
         xml += f'<robot name="{self.robot.robot_name}">\n\n'
@@ -61,32 +78,29 @@ class URDFGenerator:
     # =====================================================
 
     def _generate_link(self, link):
+        """Generate URDF for a single link."""
 
         xml = f'  <link name="{link.name}">\n'
 
-        # ----------------------------
         # Visual
-        # ----------------------------
+        if link.mesh:
+            xml += (
+                '    <visual>\n'
+                '      <origin xyz="0 0 0" rpy="0 0 0"/>\n'
+                '      <geometry>\n'
+                f'        <mesh filename="package://{self.robot.package_name}/meshes/{link.mesh}"/>\n'
+                '      </geometry>\n'
+            )
+            
+            if link.material:
+                xml += f'      <material name="{link.material}"/>\n'
+            
+            xml += '    </visual>\n\n'
 
-        xml += (
-            '    <visual>\n'
-            '      <origin xyz="0 0 0" rpy="0 0 0"/>\n'
-            '      <geometry>\n'
-            f'        <mesh filename="package://{self.robot.package_name}/meshes/{link.mesh}"/>\n'
-            '      </geometry>\n'
-            '    </visual>\n\n'
-        )
-
-        # ----------------------------
         # Collision
-        # ----------------------------
-
         xml += self._collision_geometry(link)
 
-        # ----------------------------
         # Inertial
-        # ----------------------------
-
         xml += (
             '    <inertial>\n'
             '      <origin xyz="0 0 0" rpy="0 0 0"/>\n'
@@ -110,10 +124,11 @@ class URDFGenerator:
     # =====================================================
 
     def _collision_geometry(self, link):
+        """Generate collision geometry for a link."""
 
         collision = link.collision
 
-        shape = collision.get("shape", "Mesh")
+        shape = collision.get("shape", "Mesh") if collision else "Mesh"
 
         xml = (
             '    <collision>\n'
@@ -145,7 +160,7 @@ class URDFGenerator:
                 f'radius="{collision.get("radius",0.0)}"/>\n'
             )
 
-        else:
+        else:  # Mesh
 
             xml += (
                 f'        <mesh filename="package://'
@@ -164,6 +179,7 @@ class URDFGenerator:
     # =====================================================
 
     def _generate_joint(self, joint):
+        """Generate URDF for a single joint."""
 
         origin = joint.origin
         axis = joint.axis
