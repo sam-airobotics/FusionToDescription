@@ -6,6 +6,17 @@ Central logging utility for the FusionToDescription exporter.
 
 import datetime
 import traceback
+import os
+
+LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "addin.log")
+
+@staticmethod
+def _log(level: str, message: str):
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    line = f"[{timestamp}] [{level}] {message}"
+    print(line)
+    with open(Logger.LOG_PATH, "a") as f:
+        f.write(line + "\n")
 
 
 class Logger:
