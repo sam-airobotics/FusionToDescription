@@ -39,12 +39,12 @@ class RobotXacroGenerator:
     # =====================================================
 
     def generate(self):
-        """Generate the main robot.urdf.xacro file."""
+        """Generate the main robot.xacro file."""
 
         xacro = self._build_xacro()
 
         self.writer.write_file(
-            f"urdf/{self.robot.robot_name}.urdf.xacro",
+            f"urdf/{self.robot.robot_name}.xacro",
             xacro
         )
 
@@ -84,10 +84,10 @@ class RobotXacroGenerator:
   <!-- Root Link (base_link)         -->
   <!-- ============================= -->
 
-  <link name="world"/>
+  <link name="base_footprint"/>
 
-  <joint name="fixed" type="fixed">
-    <parent link="world"/>
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
     <child link="base_link"/>
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
