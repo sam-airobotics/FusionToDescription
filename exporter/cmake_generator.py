@@ -50,8 +50,6 @@ class CMakeGenerator:
                     project({package})
 
                     find_package(ament_cmake REQUIRED)
-
-                    ament_package()
                     
                     install(
                         DIRECTORY
@@ -64,4 +62,6 @@ class CMakeGenerator:
                         DESTINATION
                             share/${{PROJECT_NAME}}
                     )
+
+                    ament_package()
                     """
