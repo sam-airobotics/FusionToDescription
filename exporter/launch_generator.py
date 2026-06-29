@@ -48,60 +48,62 @@ class LaunchGenerator:
         package = self.robot.package_name
 
         return f'''from launch import LaunchDescription
-
 from launch_ros.actions import Node
 
 from launch.substitutions import Command
+from launch.substitutions import PathJoinSubstitution
 
-from launch_ros.parameter_descriptions import ParameterValue
-
-from ament_index_python.packages import get_package_share_directory
-
-import os
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
 
     package_name = "{package}"
 
-    xacro_file = os.path.join(
-        get_package_share_directory(package_name),
+    robot_description_path = PathJoinSubstitution([
+        FindPackageShare(package_name),
         "urdf",
         "{self.robot.robot_name}.xacro"
+    ])
+
+    robot_description = Command([
+        "xacro ",
+        robot_description_path
+    ])
+
+    robot_state_publisher = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        output="screen",
+        parameters=[{{
+            "robot_description": robot_description
+        }}]
     )
 
-    robot_description = ParameterValue(
-        Command(["xacro ", xacro_file]),
-        value_type=str
+    joint_state_publisher = Node(
+        package="joint_state_publisher",
+        executable="joint_state_publisher",
+        output="screen"
+    )
+
+    rviz_config_path = PathJoinSubstitution([
+        FindPackageShare(package_name),
+        "rviz",
+        "{self.robot.robot_name}.rviz"
+    ])
+
+    rviz2 = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="screen",
+        arguments=["-d", rviz_config_path]
     )
 
     return LaunchDescription([
-
-        Node(
-            package="robot_state_publisher",
-            executable="robot_state_publisher",
-            parameters=[{{"robot_description": robot_description}}],
-            output="screen"
-        ),
-
-        Node(
-            package="joint_state_publisher_gui",
-            executable="joint_state_publisher_gui"
-        ),
-
-        Node(
-            package="rviz2",
-            executable="rviz2",
-            arguments=[
-                "-d",
-                os.path.join(
-                    get_package_share_directory(package_name),
-                    "rviz",
-                    "{self.robot.robot_name}.rviz"
-                )
-            ]
-        )
-
+        robot_state_publisher,
+        joint_state_publisher,
+        rviz2
     ])
 '''
 
@@ -158,7 +160,7 @@ def generate_launch_description():
 
                 "worlds",
 
-                "empty.world"
+                "empty.sdf"
 
             )
 
@@ -216,13 +218,41 @@ def generate_launch_description():
 
     )
 
+    bridge = Node(
+
+        package="ros_gz_bridge",
+
+        executable="parameter_bridge",
+
+        parameters=[{{
+
+            "config_file": os.path.join(
+
+                get_package_share_directory(package_name),
+
+                "config",
+
+                "bridge_config.yaml"
+
+            ),
+
+            "use_sim_time": True
+
+        }}],
+
+        output="screen"
+
+    )
+
     return LaunchDescription([
 
         gazebo,
 
         state_publisher,
 
-        spawn
+        spawn,
+
+        bridge
 
     ])
 '''
@@ -242,6 +272,7 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 from ament_index_python.packages import get_package_share_directory
+from launch_ros.actions import Node
 
 import os
 
@@ -268,21 +299,33 @@ def generate_launch_description():
 
     )
 
-    rviz = IncludeLaunchDescription(
+    rviz = Node(
 
-        PythonLaunchDescriptionSource(
+        package="rviz2",
+
+        executable="rviz2",
+
+        name="rviz2",
+
+        arguments=[
+
+            "-d",
 
             os.path.join(
 
                 get_package_share_directory(package_name),
 
-                "launch",
+                "rviz",
 
-                "display.launch.py"
+                "{self.robot.robot_name}.rviz"
 
             )
 
-        )
+        ],
+
+        parameters=[{{"use_sim_time": True}}],
+
+        output="screen"
 
     )
 

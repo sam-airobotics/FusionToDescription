@@ -10,6 +10,7 @@ FIXED:
 """
 
 from .file_writer import FileWriter
+from xml.sax.saxutils import escape, quoteattr
 
 
 class GazeboPluginXacroGenerator:
@@ -58,47 +59,48 @@ class GazeboPluginXacroGenerator:
     def _build_xacro(self):
         """Build gazebo-specific Xacro content for Harmonic."""
 
-        xacro = f"""<?xml version="1.0"?>
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="{self.robot.robot_name}">
-
-  <!-- ============================= -->
-  <!-- Gazebo Harmonic Configuration -->
-  <!-- ============================= -->
-
-  <!-- Physics engine configuration -->
-  <gazebo>
-    <physics type="ode">
-      <max_step_size>0.001</max_step_size>
-      <real_time_factor>1</real_time_factor>
-      <real_time_update_rate>1000</real_time_update_rate>
-    </physics>
-    
-    <!-- Gravity -->
-    <gravity>0 0 -9.81</gravity>
-  </gazebo>
-
-  <!-- Link-specific properties -->
+        xacro = f"""<?xml version="1.0" ?>
+<robot name={quoteattr(self.robot.robot_name)} xmlns:xacro="http://www.ros.org/wiki/xacro">
 """
 
-        # Add link-specific Gazebo configurations
+        material_map = {
+            "Black": "Gazebo/Black",
+            "Blue": "Gazebo/Blue",
+            "Green": "Gazebo/Green",
+            "Red": "Gazebo/Red",
+            "Silver": "Gazebo/Grey",
+            "Yellow": "Gazebo/Yellow",
+        }
+
         for link in self.robot.links:
-            if link.name != "base_link":  # Skip base_link, it's usually fixed
-                xacro += f"""
-  <gazebo reference="{link.name}">
+            gazebo_material = material_map.get(link.material, "Gazebo/Grey")
+            xacro += f"""
+  <gazebo reference={quoteattr(link.name)}>
+    <material>{gazebo_material}</material>
     <mu1>0.2</mu1>
     <mu2>0.2</mu2>
-    <self_collide>false</self_collide>
+    <self_collide>true</self_collide>
+    <gravity>true</gravity>
+  </gazebo>
+"""
+
+        moving_joints = [
+            joint for joint in self.robot.joints if joint.joint_type != "fixed"
+        ]
+        if moving_joints:
+            xacro += """
+  <gazebo>
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+"""
+            for joint in moving_joints:
+                xacro += f"      <joint_name>{escape(joint.name)}</joint_name>\n"
+
+            xacro += """    </plugin>
   </gazebo>
 """
 
         xacro += """
-  <!-- ============================= -->
-  <!-- ROS 2 - Gazebo Bridge         -->
-  <!-- ============================= -->
-
-  <!-- This configuration is used by ros_gz_bridge to map topics -->
-  <!-- See launch/gazebo.launch.py for bridge configuration -->
-
 </robot>
 """
 

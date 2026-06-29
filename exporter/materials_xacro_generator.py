@@ -7,6 +7,7 @@ FIXED: Added config parameter for consistency
 """
 
 from .file_writer import FileWriter
+from xml.sax.saxutils import quoteattr
 
 
 class MaterialsXacroGenerator:
@@ -55,41 +56,34 @@ class MaterialsXacroGenerator:
     def _build_xacro(self):
         """Build materials xacro content."""
 
-        xacro = f"""<?xml version="1.0"?>
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="{self.robot.robot_name}">
+        xacro = """<?xml version="1.0"?>
 
-  <!-- ============================= -->
-  <!-- Material Definitions          -->
-  <!-- ============================= -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <material name="Default">
-    <color rgba="0.8 0.8 0.8 1.0"/>
-  </material>
+    <!-- ================= COLORS ================= -->
+"""
 
-  <material name="Silver">
-    <color rgba="0.7 0.7 0.7 1.0"/>
-  </material>
+        colors = {
+            "Default": "0.8 0.8 0.8 1.0",
+            "Silver": "0.7 0.7 0.7 1.0",
+            "Black": "0.1 0.1 0.1 1.0",
+            "Red": "1.0 0.0 0.0 1.0",
+            "Green": "0.0 1.0 0.0 1.0",
+            "Blue": "0.0 0.0 1.0 1.0",
+            "Yellow": "1.0 1.0 0.0 1.0",
+        }
+        material_names = {"Default"}
+        material_names.update(link.material for link in self.robot.links if link.material)
 
-  <material name="Black">
-    <color rgba="0.1 0.1 0.1 1.0"/>
-  </material>
+        for name in sorted(material_names):
+            rgba = colors.get(name, colors["Default"])
+            xacro += f"""
+    <material name={quoteattr(name)}>
+        <color rgba="{rgba}"/>
+    </material>
+"""
 
-  <material name="Red">
-    <color rgba="1.0 0.0 0.0 1.0"/>
-  </material>
-
-  <material name="Green">
-    <color rgba="0.0 1.0 0.0 1.0"/>
-  </material>
-
-  <material name="Blue">
-    <color rgba="0.0 0.0 1.0 1.0"/>
-  </material>
-
-  <material name="Yellow">
-    <color rgba="1.0 1.0 0.0 1.0"/>
-  </material>
-
+        xacro += """
 </robot>
 """
 

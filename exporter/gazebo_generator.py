@@ -47,13 +47,13 @@ class GazeboGenerator:
 
         # Generate empty world
         self.writer.write_file(
-            "worlds/empty.world",
+            "worlds/empty.sdf",
             self._build_empty_world()
         )
 
         # ✅ ADDED: Generate bridge configuration
         self.writer.write_file(
-            "config/gazebo_bridge.yaml",
+            "config/bridge_config.yaml",
             self._build_bridge_config()
         )
 
@@ -71,7 +71,7 @@ class GazeboGenerator:
         """Build Gazebo world SDF file."""
 
         world = """<?xml version="1.0"?>
-<sdf version="1.6">
+<sdf version="1.9">
   <world name="default">
 
     <!-- Physics -->
@@ -139,30 +139,47 @@ class GazeboGenerator:
     def _build_bridge_config(self):
         """Build ros_gz_bridge configuration YAML."""
 
-        bridge_config = f"""# ROS 2 - Gazebo Harmonic Bridge Configuration
-# This file maps ROS 2 topics to Gazebo topics
+        bridge_config = """- ros_topic_name: "clock"
+  gz_topic_name: "clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
 
-bridge:
-  # Joint states from Gazebo
-  - ros_topic_name: "joint_states"
-    gz_topic_name: "/model/{self.robot.robot_name}/joint_state"
-    ros_type_name: "sensor_msgs/JointState"
-    gz_type_name: "gz.msgs.Model"
-    direction: "GZ_TO_ROS"
+- ros_topic_name: "joint_states"
+  gz_topic_name: "joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
 
-  # Clock synchronization
-  - ros_topic_name: "clock"
-    gz_topic_name: "/clock"
-    ros_type_name: "rosgraph_msgs/Clock"
-    gz_type_name: "gz.msgs.Clock"
-    direction: "GZ_TO_ROS"
+- ros_topic_name: "odom"
+  gz_topic_name: "odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
 
-  # Pose updates
-  - ros_topic_name: "tf"
-    gz_topic_name: "/model/{self.robot.robot_name}/pose"
-    ros_type_name: "geometry_msgs/TransformStamped"
-    gz_type_name: "gz.msgs.Pose"
-    direction: "GZ_TO_ROS"
+- ros_topic_name: "cmd_vel"
+  gz_topic_name: "cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "scan"
+  gz_topic_name: "scan"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "camera/image_raw"
+  gz_topic_name: "camera/image_raw"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "imu"
+  gz_topic_name: "imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
 """
 
         return bridge_config

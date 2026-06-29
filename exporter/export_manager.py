@@ -18,12 +18,8 @@ from .urdf_generator import URDFGenerator
 
 from .robot_xacro_generator import RobotXacroGenerator
 from .materials_xacro_generator import MaterialsXacroGenerator
-from .links_xacro_generator import LinksXacroGenerator
-from .joints_xacro_generator import JointsXacroGenerator
 from .gazebo_plugin_xacro_generator import GazeboPluginXacroGenerator
 
-from .robot_state_publisher_generator import RobotStatePublisherGenerator
-from .display_launch_generator import DisplayLaunchGenerator
 from .launch_generator import LaunchGenerator
 
 from .gazebo_generator import GazeboGenerator
@@ -140,24 +136,16 @@ class ExportManager:
 
             MaterialsXacroGenerator(
                 robot,
-                package
-            ).generate()
-
-            LinksXacroGenerator(
-                robot,
-                package
-            ).generate()
-
-            JointsXacroGenerator(
-                robot,
-                package
+                package,
+                self.config
             ).generate()
 
             if self.config.generate_gazebo:
 
                 GazeboPluginXacroGenerator(
                     robot,
-                    package
+                    package,
+                    self.config
                 ).generate()
 
             if self.config.generate_ros2_control:
@@ -171,7 +159,8 @@ class ExportManager:
 
             RobotXacroGenerator(
                 robot,
-                package
+                package,
+                self.config
             ).generate()
 
             # -------------------------------------------------
@@ -184,7 +173,8 @@ class ExportManager:
 
                 URDFGenerator(
                     robot,
-                    package
+                    package,
+                    self.config
                 ).generate()
 
             # -------------------------------------------------
@@ -197,7 +187,8 @@ class ExportManager:
 
                 ROS2ControlGenerator(
                     robot,
-                    package
+                    package,
+                    self.config
                 ).generate()
 
             # -------------------------------------------------
@@ -210,7 +201,8 @@ class ExportManager:
 
                 GazeboGenerator(
                     robot,
-                    package
+                    package,
+                    self.config
                 ).generate()
 
             # -------------------------------------------------
@@ -223,7 +215,8 @@ class ExportManager:
 
                 RVizGenerator(
                     robot,
-                    package
+                    package,
+                    self.config
                 ).generate()
 
             # -------------------------------------------------
@@ -233,16 +226,6 @@ class ExportManager:
             if self.config.generate_launch:
 
                 Logger.info("Generating launch files...")
-
-                RobotStatePublisherGenerator(
-                    robot,
-                    package
-                ).generate()
-
-                DisplayLaunchGenerator(
-                    robot,
-                    package
-                ).generate()
 
                 LaunchGenerator(
                     robot,
