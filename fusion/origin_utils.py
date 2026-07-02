@@ -91,31 +91,101 @@ def _rotation_to_rpy(rotation):
     return {"roll": roll, "pitch": pitch, "yaw": yaw}
 
 
-def compute_joint_origin(parent_transform, child_transform, fallback_origin=None):
-    """Compute a joint origin expressed in the parent link frame."""
+def compute_joint_origin(
+    parent_transform,
+    child_transform,
+    joint_position=None,
+):
+    """
+    Compute a joint origin expressed in the parent link frame.
+
+    Args:
+        parent_transform: Fusion transform of parent occurrence.
+        child_transform: Fusion transform of child occurrence.
+        joint_position: Dict {"x","y","z"} representing the Fusion joint
+                        geometry origin in world coordinates.
+
+    Returns:
+        dict containing xyz and rpy.
+    """
+
     parent = _coerce_transform(parent_transform)
     child = _coerce_transform(child_transform)
 
-    if parent and child:
-        parent_translation = parent["translation"]
-        child_translation = child["translation"]
-        parent_rotation = parent["rotation"]
-        child_rotation = child["rotation"]
+    if parent:
 
-        delta = {
-            "x": child_translation["x"] - parent_translation["x"],
-            "y": child_translation["y"] - parent_translation["y"],
-            "z": child_translation["z"] - parent_translation["z"],
-        }
+        parent_translation = parent["translation"]
+        parent_rotation = parent["rotation"]
+
+        # --------------------------------------------------
+        # Translation
+        # --------------------------------------------------
+
+        if joint_position:
+
+            delta = {
+                "x": joint_position["x"] - parent_translation["x"],
+                "y": joint_position["y"] - parent_translation["y"],
+                "z": joint_position["z"] - parent_translation["z"],
+            }
+
+        elif child:
+
+            child_translation = child["translation"]
+
+            delta = {
+                "x": child_translation["x"] - parent_translation["x"],
+                "y": child_translation["y"] - parent_translation["y"],
+                "z": child_translation["z"] - parent_translation["z"],
+            }
+
+        else:
+
+            delta = {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+            }
+
+        # Convert world coordinates into the parent's frame.
+        parent_rotation_t = _transpose_rotation(parent_rotation)
 
         relative_translation = {
-            "x": parent_rotation["r11"] * delta["x"] + parent_rotation["r21"] * delta["y"] + parent_rotation["r31"] * delta["z"],
-            "y": parent_rotation["r12"] * delta["x"] + parent_rotation["r22"] * delta["y"] + parent_rotation["r32"] * delta["z"],
-            "z": parent_rotation["r13"] * delta["x"] + parent_rotation["r23"] * delta["y"] + parent_rotation["r33"] * delta["z"],
+            "x": parent_rotation_t["r11"] * delta["x"]
+               + parent_rotation_t["r12"] * delta["y"]
+               + parent_rotation_t["r13"] * delta["z"],
+
+            "y": parent_rotation_t["r21"] * delta["x"]
+               + parent_rotation_t["r22"] * delta["y"]
+               + parent_rotation_t["r23"] * delta["z"],
+
+            "z": parent_rotation_t["r31"] * delta["x"]
+               + parent_rotation_t["r32"] * delta["y"]
+               + parent_rotation_t["r33"] * delta["z"],
         }
 
-        relative_rotation = _multiply_rotations(_transpose_rotation(parent_rotation), child_rotation)
-        rpy = _rotation_to_rpy(relative_rotation)
+        # --------------------------------------------------
+        # Rotation
+        # --------------------------------------------------
+
+        if child:
+
+            child_rotation = child["rotation"]
+
+            relative_rotation = _multiply_rotations(
+                parent_rotation_t,
+                child_rotation,
+            )
+
+            rpy = _rotation_to_rpy(relative_rotation)
+
+        else:
+
+            rpy = {
+                "roll": 0.0,
+                "pitch": 0.0,
+                "yaw": 0.0,
+            }
 
         return {
             "x": relative_translation["x"],
@@ -124,11 +194,16 @@ def compute_joint_origin(parent_transform, child_transform, fallback_origin=None
             **rpy,
         }
 
-    if fallback_origin:
+    # --------------------------------------------------
+    # Fallback
+    # --------------------------------------------------
+
+    if joint_position:
+
         return {
-            "x": fallback_origin.get("x", 0.0),
-            "y": fallback_origin.get("y", 0.0),
-            "z": fallback_origin.get("z", 0.0),
+            "x": joint_position["x"],
+            "y": joint_position["y"],
+            "z": joint_position["z"],
             "roll": 0.0,
             "pitch": 0.0,
             "yaw": 0.0,

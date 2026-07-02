@@ -148,32 +148,39 @@ class JointParser:
     # Joint Origin
     # ---------------------------------------------------------
 
-    def _joint_origin(self, joint, parent_transform=None, child_transform=None):
+    def _joint_origin(
+        self,
+        joint,
+        parent_transform=None,
+        child_transform=None
+    ):
+        """Return the joint origin expressed in the parent link frame."""
 
         try:
 
             geometry = joint.geometry
-            origin = geometry.origin
-            fallback_origin = {
-                "x": origin.x,
-                "y": origin.y,
-                "z": origin.z,
+            joint_position = geometry.origin
+
+            return compute_joint_origin(
+                parent_transform=parent_transform,
+                child_transform=child_transform,
+                joint_position={
+                    "x": joint_position.x,
+                    "y": joint_position.y,
+                    "z": joint_position.z,
+                }
+            )
+
+        except Exception:
+
+            return {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "roll": 0.0,
+                "pitch": 0.0,
+                "yaw": 0.0,
             }
-
-            return compute_joint_origin(
-                parent_transform,
-                child_transform,
-                fallback_origin=fallback_origin,
-            )
-
-        except Exception as e:
-            # Return default origin if extraction fails
-            return compute_joint_origin(
-                parent_transform,
-                child_transform,
-                fallback_origin=None,
-            )
-
     # ---------------------------------------------------------
     # Joint Axis
     # ---------------------------------------------------------
