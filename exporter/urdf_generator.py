@@ -78,6 +78,30 @@ class URDFGenerator:
     # Link
     # =====================================================
 
+    def _origin_xyz(self, origin):
+        """Format an origin dict or transform-style dict into XYZ text."""
+        if not origin:
+            return "0.0 0.0 0.0"
+
+        if isinstance(origin, dict) and "translation" in origin:
+            translation = origin.get("translation", {})
+            return (
+                f"{translation.get('x', 0.0)} {translation.get('y', 0.0)} "
+                f"{translation.get('z', 0.0)}"
+            )
+
+        return f"{origin.get('x', 0.0)} {origin.get('y', 0.0)} {origin.get('z', 0.0)}"
+
+    def _origin_rpy(self, origin):
+        """Format an origin dict into roll/pitch/yaw text."""
+        if not origin or isinstance(origin, dict) and "translation" in origin:
+            return "0.0 0.0 0.0"
+
+        return (
+            f"{origin.get('roll', 0.0)} {origin.get('pitch', 0.0)} "
+            f"{origin.get('yaw', 0.0)}"
+        )
+
     def _generate_link(self, link, xacro=False):
         """Generate URDF for a single link."""
 
@@ -103,9 +127,10 @@ class URDFGenerator:
 
         # Visual
         if link.mesh:
+            origin_xyz = self._origin_xyz(getattr(link, "origin", None))
             xml += (
                 f'        <visual name={quoteattr(link.name + "_visual")}>\n'
-                '            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />\n'
+                f'            <origin xyz="{origin_xyz}" rpy="0.0 0.0 0.0" />\n'
                 '            <geometry>\n'
                 f'                <mesh filename={quoteattr(mesh_uri)} scale="0.001 0.001 0.001" />\n'
                 '            </geometry>\n'
@@ -134,9 +159,11 @@ class URDFGenerator:
 
         shape = collision.get("shape", "Mesh") if collision else "Mesh"
 
+        origin_xyz = self._origin_xyz(getattr(link, "origin", None))
+
         xml = (
             f'        <collision name={quoteattr(link.name + "_collision")}>\n'
-            '            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />\n'
+            f'            <origin xyz="{origin_xyz}" rpy="0.0 0.0 0.0" />\n'
             '            <geometry>\n'
         )
 
@@ -188,15 +215,14 @@ class URDFGenerator:
         origin = joint.origin
         axis = joint.axis
 
+        origin_xyz = self._origin_xyz(origin)
+        origin_rpy = self._origin_rpy(origin)
+
         xml = (
             f'    <joint name={quoteattr(joint.name)} type={quoteattr(joint.joint_type)}>\n'
             f'        <origin '
-            f'xyz="{origin.get("x",0)} '
-            f'{origin.get("y",0)} '
-            f'{origin.get("z",0)}" '
-            f'rpy="{origin.get("roll",0)} '
-            f'{origin.get("pitch",0)} '
-            f'{origin.get("yaw",0)}" />\n'
+            f'xyz="{origin_xyz}" '
+            f'rpy="{origin_rpy}" />\n'
             f'        <parent link={quoteattr(joint.parent)} />\n'
             f'        <child link={quoteattr(joint.child)} />\n'
         )

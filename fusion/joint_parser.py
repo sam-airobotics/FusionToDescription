@@ -2,6 +2,8 @@ import traceback
 import adsk.core
 import adsk.fusion
 
+from .origin_utils import compute_joint_origin
+
 
 app = adsk.core.Application.get()
 
@@ -47,15 +49,19 @@ class JointParser:
 
         parent = ""
         child = ""
+        parent_transform = None
+        child_transform = None
 
         try:
 
             parent = (
                 joint.occurrenceOne.component.name
             )
+            parent_transform = joint.occurrenceOne.transform2
 
         except Exception as e:
             parent = ""
+            parent_transform = None
             # silently handle missing parent reference
 
         try:
@@ -63,14 +69,16 @@ class JointParser:
             child = (
                 joint.occurrenceTwo.component.name
             )
+            child_transform = joint.occurrenceTwo.transform2
 
         except Exception as e:
             child = ""
+            child_transform = None
             # silently handle missing child reference
 
         joint_type = self._joint_type(joint)
 
-        origin = self._joint_origin(joint)
+        origin = self._joint_origin(joint, parent_transform, child_transform)
 
         axis = self._joint_axis(joint)
 
@@ -140,31 +148,31 @@ class JointParser:
     # Joint Origin
     # ---------------------------------------------------------
 
-    def _joint_origin(self, joint):
+    def _joint_origin(self, joint, parent_transform=None, child_transform=None):
 
         try:
 
             geometry = joint.geometry
-
             origin = geometry.origin
-
-            return {
-
+            fallback_origin = {
                 "x": origin.x,
                 "y": origin.y,
-                "z": origin.z
-
+                "z": origin.z,
             }
+
+            return compute_joint_origin(
+                parent_transform,
+                child_transform,
+                fallback_origin=fallback_origin,
+            )
 
         except Exception as e:
             # Return default origin if extraction fails
-            return {
-
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
-
-            }
+            return compute_joint_origin(
+                parent_transform,
+                child_transform,
+                fallback_origin=None,
+            )
 
     # ---------------------------------------------------------
     # Joint Axis
