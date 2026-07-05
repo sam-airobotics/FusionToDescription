@@ -30,3 +30,37 @@ def set_manual_shape_group(group):
 def get_manual_shape_group():
     """Get reference to manual shape group."""
     return manual_shape_group
+
+
+# =========================================================
+# Material Colors
+# =========================================================
+   
+material_color_inputs = {}
+    
+def register_material_color(component_name, color_input):
+    """
+    Register the color picker for a component.
+    """
+    material_color_inputs[component_name] = color_input
+    
+
+def get_material_color(component_name):
+    """
+    Get the ColorCommandInput for a component.
+    """
+    return material_color_inputs.get(component_name)
+
+
+def get_all_material_colors():
+    """
+    Return dictionary of all registered color inputs.
+    """
+    return material_color_inputs
+
+
+def clear_material_colors():
+    """
+    Clear material input cache when command closes.
+    """
+    material_color_inputs.clear()

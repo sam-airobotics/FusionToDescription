@@ -1,13 +1,13 @@
 """
 materials_xacro_generator.py
 
-Generates the materials.xacro file containing visual material definitions.
-
-FIXED: Added config parameter for consistency
+Generates the materials.xacro file containing visual
+material definitions extracted from the RobotModel.
 """
 
-from .file_writer import FileWriter
 from xml.sax.saxutils import quoteattr
+
+from .file_writer import FileWriter
 
 
 class MaterialsXacroGenerator:
@@ -20,65 +20,68 @@ class MaterialsXacroGenerator:
     ):
         """
         Initialize materials xacro generator.
-        
-        Args:
-            robot: RobotModel instance
-            package_creator: PackageCreator instance
-            config: ExportConfig instance (optional)
         """
 
         self.robot = robot
         self.package = package_creator
-        self.config = config  # ✅ ADDED
+        self.config = config
 
         self.writer = FileWriter(
             self.package.package_directory()
         )
 
     # =====================================================
-    # Generate Materials Xacro
+    # Generate
     # =====================================================
 
     def generate(self):
-        """Generate the materials.xacro file."""
-
-        xacro = self._build_xacro()
 
         self.writer.write_file(
-            f"urdf/materials.xacro",
-            xacro
+            "urdf/materials.xacro",
+            self._build_xacro()
         )
 
     # =====================================================
-    # Build Materials Xacro
+    # Build
     # =====================================================
 
     def _build_xacro(self):
-        """Build materials xacro content."""
 
         xacro = """<?xml version="1.0"?>
 
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-    <!-- ================= COLORS ================= -->
+    <!-- ================================================= -->
+    <!-- Material Definitions                              -->
+    <!-- ================================================= -->
 """
 
-        colors = {
-            "Default": "0.8 0.8 0.8 1.0",
-            "Silver": "0.7 0.7 0.7 1.0",
-            "Black": "0.1 0.1 0.1 1.0",
-            "Red": "1.0 0.0 0.0 1.0",
-            "Green": "0.0 1.0 0.0 1.0",
-            "Blue": "0.0 0.0 1.0 1.0",
-            "Yellow": "1.0 1.0 0.0 1.0",
-        }
-        material_names = {"Default"}
-        material_names.update(link.material for link in self.robot.links if link.material)
+        # Prevent duplicate material definitions
+        exported = set()
 
-        for name in sorted(material_names):
-            rgba = colors.get(name, colors["Default"])
+        for link in self.robot.links:
+
+            material = link.material
+
+            if material is None:
+                continue
+
+            if material.name in exported:
+                continue
+
+            exported.add(material.name)
+
+            color = material.color
+
+            rgba = (
+                f"{color.r:.6f} "
+                f"{color.g:.6f} "
+                f"{color.b:.6f} "
+                f"{color.a:.6f}"
+            )
+
             xacro += f"""
-    <material name={quoteattr(name)}>
+    <material name={quoteattr(material.name)}>
         <color rgba="{rgba}"/>
     </material>
 """

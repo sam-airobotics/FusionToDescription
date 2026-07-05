@@ -26,6 +26,8 @@ from .gazebo_generator import GazeboGenerator
 from .rviz_generator import RVizGenerator
 from .ros2_control_generator import ROS2ControlGenerator
 
+from ..commands.ui import ui_context
+
 
 class ExportManager:
     """
@@ -35,6 +37,42 @@ class ExportManager:
     def __init__(self, config):
 
         self.config = config
+
+    # =====================================================
+    # Apply Material Colors
+    # =====================================================
+
+    def _apply_material_colors(self, robot):
+
+        Logger.info(
+            "Applying user material colors..."
+        )
+
+        for link in robot.links:
+
+            picker = ui_context.get_material_color(
+                link.name
+            )
+
+            if picker is None:
+                continue
+
+            color = picker.value
+
+            if color is None:
+                continue
+
+            if link.material is None:
+                continue
+
+            link.material.color.r = color.red / 255.0
+            link.material.color.g = color.green / 255.0
+            link.material.color.b = color.blue / 255.0
+            link.material.color.a = color.opacity / 255.0
+
+            Logger.info(
+                f"{link.name} → {link.material.name}"
+            )
 
     # =====================================================
     # Export
@@ -90,6 +128,12 @@ class ExportManager:
                 raise RuntimeError(
                     "Failed to build RobotModel."
                 )
+            
+            # ---------------------------------------------
+            # Apply User Material Colors
+            # ---------------------------------------------
+
+            self._apply_material_colors(robot)
 
             # -------------------------------------------------
             # Validate Robot Model

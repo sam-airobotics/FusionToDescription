@@ -16,9 +16,11 @@ from ..helpers.ui_builder import (
 from ...fusion.mass_extractor import get_mass_data
 from ...fusion.component_parser import get_component_data
 from ...fusion.inertia_calculator import calculate_inertia
+from ...fusion.material_parser import MaterialParser
+from . import ui_context
 
 
-def build_properties_tab(inputs):
+def build_properties_tab(inputs):   
     """Build the Properties tab UI.
     
     Args:
@@ -94,6 +96,75 @@ def build_properties_tab(inputs):
         )
 
     return properties_tab
+
+# =====================================================
+# Material Properties Group
+# =====================================================
+
+material_group = create_group(
+    properties_inputs,
+    "material_group",
+    "Material Properties"
+)
+
+material_inputs = material_group.children
+
+create_text_box(
+    material_inputs,
+    "material_info",
+    "",
+    "Fusion material names are preserved. "
+    "Select the visualization color for each component.",
+    2,
+    True
+)
+
+# -----------------------------------------------------
+# Get Materials
+# -----------------------------------------------------
+
+parser = MaterialParser()
+materials = parser.parse()
+
+for component_name, material in materials.items():
+
+    # ---------------------------------------------
+    # Material Name
+    # ---------------------------------------------
+
+    material_name = material
+
+    if isinstance(material, dict):
+        material_name = material.get("name", "Default")
+
+    create_text_box(
+        material_inputs,
+        f"{component_name}_material",
+        component_name,
+        material_name,
+        1,
+        True
+    )
+
+    # ---------------------------------------------
+    # Color Picker
+    # ---------------------------------------------
+
+    color_input = material_inputs.addColorCommandInput(
+        f"{component_name}_color",
+        f"{component_name} Color",
+        adsk.core.Color.create(
+            180,
+            180,
+            180,
+            255
+        )
+    )
+
+    ui_context.register_material_color(
+        component_name,
+        color_input
+    )
 
 
 def _build_component_inertia_group(parent, component, mass_lookup):

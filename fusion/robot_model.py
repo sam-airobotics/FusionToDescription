@@ -20,6 +20,29 @@ from .joint_tree import orient_joints
 
 
 # ==========================================================
+# Color
+# ==========================================================
+@dataclass
+class Color:
+
+    r: float = 0.7
+    g: float = 0.7
+    b: float = 0.7
+    a: float = 1.0
+
+# ==========================================================
+# Material
+# ==========================================================
+@dataclass
+class Material:
+
+    name: str = "Default"
+
+    color: Color = field(
+        default_factory=Color
+    )
+
+# ==========================================================
 # Link
 # ==========================================================
 
@@ -30,7 +53,9 @@ class Link:
 
     mesh: str = ""
 
-    material: str = "Default"
+    material: Material = field(
+        default_factory=Material
+    )
 
     mass: float = 0.0
 
