@@ -131,7 +131,25 @@ def build_properties_tab(inputs):
 
     materials = parser.parse()
 
+    visualization_colors = [
+        "Default",
+        "White",
+        "Black",
+        "Gray",
+        "Silver",
+        "Red",
+        "Green",
+        "Blue",
+        "Yellow",
+        "Orange",
+        "Purple"
+    ]
+
     for component_name, material in materials.items():
+
+        # ---------------------------------------------
+        # Fusion Material Name (Read Only)
+        # ---------------------------------------------
 
         create_text_box(
             material_inputs,
@@ -142,22 +160,28 @@ def build_properties_tab(inputs):
             True
         )
 
-        color_input = material_inputs.addColorCommandInput(
+        # ---------------------------------------------
+        # Visualization Color
+        # ---------------------------------------------
+
+        dropdown = material_inputs.addDropDownCommandInput(
             f"{component_name}_color",
             f"{component_name} Color",
-            adsk.core.Color.create(
-                int(material.color.r * 255),
-                int(material.color.g * 255),
-                int(material.color.b * 255),
-                int(material.color.a * 255)
+            adsk.core.DropDownStyles.TextListDropDownStyle
+        )
+
+        for color in visualization_colors:
+
+            dropdown.listItems.add(
+                color,
+                color == "Default"
             )
-        )
 
-        ui_context.register_material_color(
+        ui_context.register_material_dropdown(
             component_name,
-            color_input
+            dropdown
         )
-
+        
     return properties_tab
 
 
