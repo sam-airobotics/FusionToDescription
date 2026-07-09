@@ -17,30 +17,7 @@ from .inertia_calculator import calculate_inertia
 from .material_parser import MaterialParser
 from .mesh_exporter import MeshExporter
 from .joint_tree import orient_joints
-
-
-# ==========================================================
-# Color
-# ==========================================================
-@dataclass
-class Color:
-
-    r: float = 0.7
-    g: float = 0.7
-    b: float = 0.7
-    a: float = 1.0
-
-# ==========================================================
-# Material
-# ==========================================================
-@dataclass
-class Material:
-
-    name: str = "Default"
-
-    color: Color = field(
-        default_factory=Color
-    )
+from .material import Material
 
 # ==========================================================
 # Link

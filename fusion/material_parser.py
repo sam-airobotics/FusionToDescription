@@ -13,7 +13,7 @@ import traceback
 import adsk.core
 import adsk.fusion
 
-from .robot_model import Material
+from .material import Material
 
 app = adsk.core.Application.get()
 
