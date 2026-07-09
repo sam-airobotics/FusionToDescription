@@ -33,34 +33,35 @@ def get_manual_shape_group():
 
 
 # =========================================================
-# Material Colors
+# Material Visualization Dropdowns
 # =========================================================
-   
-material_color_inputs = {}
-    
-def register_material_color(component_name, color_input):
-    """
-    Register the color picker for a component.
-    """
-    material_color_inputs[component_name] = color_input
-    
 
-def get_material_color(component_name):
-    """
-    Get the ColorCommandInput for a component.
-    """
-    return material_color_inputs.get(component_name)
+material_dropdowns = {}
 
 
-def get_all_material_colors():
+def register_material_dropdown(component_name, dropdown):
     """
-    Return dictionary of all registered color inputs.
+    Register the visualization color dropdown for a component.
     """
-    return material_color_inputs
+    material_dropdowns[component_name] = dropdown
 
 
-def clear_material_colors():
+def get_material_dropdown(component_name):
     """
-    Clear material input cache when command closes.
+    Get the visualization color dropdown for a component.
     """
-    material_color_inputs.clear()
+    return material_dropdowns.get(component_name)
+
+
+def get_all_material_dropdowns():
+    """
+    Return all registered visualization color dropdowns.
+    """
+    return material_dropdowns
+
+
+def clear_material_dropdowns():
+    """
+    Clear dropdown cache when the command closes.
+    """
+    material_dropdowns.clear()
