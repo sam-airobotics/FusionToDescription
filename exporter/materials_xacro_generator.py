@@ -56,7 +56,6 @@ class MaterialsXacroGenerator:
     <!-- ================================================= -->
 """
 
-        # Prevent duplicate material definitions
         exported = set()
 
         for link in self.robot.links:
@@ -66,6 +65,9 @@ class MaterialsXacroGenerator:
             if material is None:
                 continue
 
+            if not material.name:
+                continue
+
             if material.name in exported:
                 continue
 
@@ -73,16 +75,18 @@ class MaterialsXacroGenerator:
 
             color = material.color
 
-            rgba = (
-                f"{color.r:.6f} "
-                f"{color.g:.6f} "
-                f"{color.b:.6f} "
-                f"{color.a:.6f}"
-            )
+            if color is None:
+                r = g = b = 0.7
+                a = 1.0
+            else:
+                r = color.r
+                g = color.g
+                b = color.b
+                a = color.a
 
             xacro += f"""
     <material name={quoteattr(material.name)}>
-        <color rgba="{rgba}"/>
+        <color rgba="{r:.6f} {g:.6f} {b:.6f} {a:.6f}"/>
     </material>
 """
 
