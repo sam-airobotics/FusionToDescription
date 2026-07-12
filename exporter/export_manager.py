@@ -43,37 +43,65 @@ class ExportManager:
     # =====================================================
 
     def _apply_material_colors(self, robot):
+        """
+        Apply user-selected visualization colors while
+        preserving the original Fusion material names.
+        """
 
         Logger.info(
             "Applying user material colors..."
         )
 
+        color_map = {
+
+            "Default": (0.7, 0.7, 0.7, 1.0),
+
+            "White":  (1.0, 1.0, 1.0, 1.0),
+            "Black":  (0.0, 0.0, 0.0, 1.0),
+            "Gray":   (0.5, 0.5, 0.5, 1.0),
+            "Silver": (0.75, 0.75, 0.75, 1.0),
+
+            "Red":    (1.0, 0.0, 0.0, 1.0),
+            "Green":  (0.0, 1.0, 0.0, 1.0),
+            "Blue":   (0.0, 0.0, 1.0, 1.0),
+
+            "Yellow": (1.0, 1.0, 0.0, 1.0),
+            "Orange": (1.0, 0.5, 0.0, 1.0),
+            "Purple": (0.6, 0.2, 0.8, 1.0),
+        }
+
         for link in robot.links:
 
-            picker = ui_context.get_material_color(
+            dropdown = ui_context.get_material_dropdown(
                 link.name
             )
 
-            if picker is None:
+            if dropdown is None:
                 continue
 
-            color = picker.value
-
-            if color is None:
+            if dropdown.selectedItem is None:
                 continue
 
             if link.material is None:
                 continue
 
-            link.material.color.r = color.red / 255.0
-            link.material.color.g = color.green / 255.0
-            link.material.color.b = color.blue / 255.0
-            link.material.color.a = color.opacity / 255.0
+            selected_color = dropdown.selectedItem.name
 
-            Logger.info(
-                f"{link.name} → {link.material.name}"
+            rgba = color_map.get(
+                selected_color,
+                color_map["Default"]
             )
 
+            link.material.color.r = rgba[0]
+            link.material.color.g = rgba[1]
+            link.material.color.b = rgba[2]
+            link.material.color.a = rgba[3]
+
+            Logger.info(
+                f"{link.name} -> {link.material.name} "
+                f"({selected_color})"
+            )
+            
     # =====================================================
     # Export
     # =====================================================
