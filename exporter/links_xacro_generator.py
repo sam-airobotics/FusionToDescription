@@ -60,14 +60,33 @@ class LinksXacroGenerator:
 """
 
         return xacro
-
+        
     # =====================================================
     # Link
     # =====================================================
 
     def _generate_link(self, link):
 
+        # origin = link.origin or {}
+
+        # x = origin.get("x", 0.0)
+        # y = origin.get("y", 0.0)
+        # z = origin.get("z", 0.0)
+
+        # roll = origin.get("roll", 0.0)
+        # pitch = origin.get("pitch", 0.0)
+        # yaw = origin.get("yaw", 0.0)
+
+        com = link.center_of_mass or (
+            0.0,
+            0.0,
+            0.0
+        )
+
+        inertia = link.inertia or {}
+        
         xml = f"""
+        
     <link name="{link.name}">
 """
 
@@ -79,11 +98,10 @@ class LinksXacroGenerator:
 
             xml += f"""
         <visual>
-
-
-            <origin
-                xyz="{link.origin['x']} {link.origin['y']} {link.origin['z']}"
-                rpy="{link.origin['roll']} {link.origin['pitch']} {link.origin['yaw']}"/>
+              
+            <origin 
+                xyz="0 0 0"
+                rpy="0 0 0"/>
 
 ...
 
@@ -95,13 +113,13 @@ class LinksXacroGenerator:
 """
 
             # Material
-            if link.material:
+            if link.material is not None:
 
                 xml += f"""
             <material name="{link.material.name}"/>
 """
 
-            xml += """
+            xml += f"""
         </visual>
 """
 
@@ -118,12 +136,12 @@ class LinksXacroGenerator:
                 "Mesh"
             )
 
-            xml += """
+            xml += f"""
         <collision>
 
             <origin
-                xyz="{link.origin['x']} {link.origin['y']} {link.origin['z']}"
-                rpy="{link.origin['roll']} {link.origin['pitch']} {link.origin['yaw']}"/>
+                xyz="0 0 0"
+                rpy="0 0 0"/>
 
             <geometry>
 """
@@ -155,7 +173,7 @@ class LinksXacroGenerator:
                 <mesh filename="package://{self.robot.package_name}/meshes/{link.mesh}"/>
 """
 
-            xml += """
+            xml += f"""
             </geometry>
 
         </collision>
@@ -168,22 +186,22 @@ class LinksXacroGenerator:
         xml += f"""
         <inertial>
 
-            <origin
-        xyz="{link.center_of_mass[0]} {link.center_of_mass[1]} {link.center_of_mass[2]}"
-        rpy="0 0 0"/>
+                <origin
+                    xyz="{com[0]} {com[1]} {com[2]}"
+                    rpy="0 0 0"/>
 
             <mass value="{link.mass}"/>
 
             <inertia
 
-                ixx="{link.inertia.get('ixx',0.0)}"
-                ixy="{link.inertia.get('ixy',0.0)}"
-                ixz="{link.inertia.get('ixz',0.0)}"
+                ixx="{inertia.get('ixx',0.0)}"
+                ixy="{inertia.get('ixy',0.0)}"
+                ixz="{inertia.get('ixz',0.0)}"
 
-                iyy="{link.inertia.get('iyy',0.0)}"
-                iyz="{link.inertia.get('iyz',0.0)}"
+                iyy="{inertia.get('iyy',0.0)}"
+                iyz="{inertia.get('iyz',0.0)}"
 
-                izz="{link.inertia.get('izz',0.0)}"/>
+                izz="{inertia.get('izz',0.0)}"/>
 
         </inertial>
 
