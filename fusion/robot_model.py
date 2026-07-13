@@ -16,7 +16,8 @@ from .mass_extractor import get_mass_data
 from .inertia_calculator import calculate_inertia
 from .material_parser import MaterialParser
 from .mesh_exporter import MeshExporter
-
+from .joint_tree import orient_joints
+from .material import Material
 
 # ==========================================================
 # Link
@@ -29,7 +30,9 @@ class Link:
 
     mesh: str = ""
 
-    material: str = "Default"
+    material: Material = field(
+        default_factory=Material
+    )
 
     mass: float = 0.0
 
@@ -196,6 +199,11 @@ class RobotModelBuilder:
             )
             for j in joint_dicts
         ]
+
+        # Fusion joint endpoints have no parent/child semantics.  URDF joints
+        # must form a directed tree, so orient the graph from base_link before
+        # validation and generation.
+        orient_joints(self.robot.joints)
 
         # ----------------------------------------------
         # Transforms

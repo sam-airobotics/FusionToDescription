@@ -77,7 +77,7 @@ def generate_launch_description():
     xacro_file = os.path.join(
         get_package_share_directory(package_name),
         "urdf",
-        "{self.robot.robot_name}.urdf.xacro"
+        "{self.robot.robot_name}.xacro"
     )
 
     robot_description = ParameterValue(
