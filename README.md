@@ -1,78 +1,137 @@
-# 🚀 FusionToDescription v0.1.0
+# 🚀 FusionToDescription v0.1.1
 
-## Initial Public Release
+## Material Pipeline Update
 
-This version introduces a complete end-to-end workflow for exporting Autodesk Fusion 360 robot assemblies into ROS 2 description packages, with an intuitive user interface and automatic package generation.
+Version **0.1.1** builds upon the initial public release by introducing a redesigned material pipeline, improved export architecture, and numerous internal improvements to the ROS 2 package generation workflow.
 
----
-
-## ✨ What's New
-
-### ✅ Complete Export Workflow
-
-FusionToDescription now provides a complete export pipeline from Fusion 360 to ROS 2.
-
-* Robot package generation
-* Automatic URDF/Xacro creation
-* Mesh export
-* Launch file generation
-* RViz configuration
-* Gazebo integration
+This release focuses on making exported robot descriptions more modular, maintainable, and ready for future rendering enhancements while continuing work on improving joint generation.
 
 ---
 
-## 🖥️ Redesigned User Interface
+# ✨ What's New
 
-The exporter now features a four-tab workflow for configuring every aspect of the robot before export.
+## 🎨 Material Pipeline Overhaul
 
-### 📁 General
+FusionToDescription now features a completely redesigned material pipeline.
 
-Configure the robot name and package export location.
+### ✅ Fusion Material Preservation
+
+The exporter now preserves the original Autodesk Fusion 360 material (appearance) assigned to every component.
+
+Instead of replacing materials with predefined colors, Fusion material names are now stored throughout the export process.
+
+### 🌈 Independent Visualization Colors
+
+Visualization colors are now separated from Fusion materials.
+
+This enables:
+
+- Preserve original Fusion material names
+- Assign visualization colors independently
+- Better compatibility with RViz
+- Better compatibility with Gazebo
+- Cleaner material management throughout the package
+
+---
+
+## ⚙️ Improved Robot Model
+
+The internal RobotModel has been redesigned to support richer material information.
+
+Instead of storing materials as plain strings:
+
+```python
+material = "Steel"
+```
+
+FusionToDescription now stores:
+
+```python
+Material
+├── name
+└── Color
+      ├── r
+      ├── g
+      ├── b
+      └── a
+```
+
+This architecture prepares the exporter for future features including:
+
+- Material libraries
+- Custom shaders
+- PBR materials
+- Texture support
+- Advanced Gazebo rendering
+
+---
+
+## 📦 Improved Material Generation
+
+The generated `materials.xacro` file has been completely redesigned.
+
+### Improvements
+
+- Automatic material generation
+- Duplicate material removal
+- RGBA color generation
+- Material definitions shared between links
+- Cleaner Xacro output
+- Better compatibility with ROS 2
+
+---
+
+## 🖥️ Updated Properties Tab
+
+The **Properties** tab has been extended to include material visualization settings.
+
+Users can now:
+
+- View the original Fusion material
+- Choose visualization colors independently
+- Keep CAD materials unchanged while customizing simulation appearance
 
 <p align="center">
-<img src="https://github.com/user-attachments/assets/64d7088a-0df4-4868-8999-d734b322efc1" width="95%">
+<img src="https://github.com/user-attachments/assets/20838993-53f1-423e-8d91-57416fa8c59b" width="95%"><br>
+<img width="95%" src="https://github.com/user-attachments/assets/0c63a336-9e4d-494e-ad95-ef5198d9e5c3">
 </p>
 
 ---
 
-### ⚖️ Properties
+# ⚡ Export Pipeline Improvements
 
-Edit component masses while FusionToDescription automatically computes the corresponding inertia tensors.
+Several internal components have been redesigned to improve maintainability and future development.
 
-<p align="center">
-<img src="https://github.com/user-attachments/assets/20838993-53f1-423e-8d91-57416fa8c59b" width="95%">
-</p>
+### Updated Components
 
----
+- Material Parser
+- RobotModel
+- Export Manager
+- Materials Xacro Generator
+- Link Generation Pipeline
+- URDF Generation Pipeline
 
-### 🎮 Simulation
+### Improvements
 
-Configure simulation features including:
-
-* Gazebo plugins
-* ROS-GZ Bridge
-* Sensors
-* ROS 2 Control
-
-<p align="center">
-<img src="https://github.com/user-attachments/assets/ce7a0584-520b-4720-8a4d-b63445fea671" width="95%">
-</p>
+- Better separation of responsibilities
+- Cleaner data flow
+- Improved code organization
+- Simplified material handling
+- Easier future feature integration
 
 ---
 
-### ⚙️ Advanced
+# 📦 Export Result
 
-Additional export options for advanced ROS 2 workflows.
+FusionToDescription continues to automatically generate a complete ROS 2 description package containing:
 
-<p align="center">
-<img src="https://github.com/user-attachments/assets/786cfe25-0585-4807-9189-20761f1086e6" width="95%">
-</p>
-
----
-
-## 📦 Export Result
-
-A complete ROS 2 description package is generated automatically.
+- URDF / Xacro
+- Meshes
+- Material definitions
+- Gazebo configuration
+- RViz configuration
+- Launch files
+- ROS 2 Control configuration (optional)
 
 <p align="center">
 <img src="https://github.com/user-attachments/assets/71ecfa46-278c-4e3f-9ab4-1984b865d32c" width="95%">
@@ -80,9 +139,9 @@ A complete ROS 2 description package is generated automatically.
 
 ---
 
-## 📁 Export Location
+# 📁 Export Location
 
-Generated packages are saved directly to the selected destination.
+Generated packages are exported directly to the selected destination.
 
 <p align="center">
 <img src="https://github.com/user-attachments/assets/a2719525-de13-4f5d-835d-5cd502457a16" width="95%">
@@ -90,31 +149,49 @@ Generated packages are saved directly to the selected destination.
 
 ---
 
-## 🚀 Release Highlights
+# 🚀 Release Highlights
 
-* ✅ Fully functional FusionToDescription UI
-* ✅ Complete ROS 2 description package generation
-* ✅ Automatic inertia calculation
-* ✅ Editable mass properties
-* ✅ Mesh and primitive collision generation
-* ✅ Gazebo plugin generation
-* ✅ ROS-GZ Bridge configuration
-* ✅ Sensor integration
-* ✅ Optional ROS 2 Control support
-* ✅ Xacro-based package structure
-* ✅ Ready for ROS 2 simulation
+- ✅ Redesigned Material Pipeline
+- ✅ Fusion Material Preservation
+- ✅ Independent Visualization Colors
+- ✅ Improved RobotModel Architecture
+- ✅ Automatic Material Generation
+- ✅ Cleaner `materials.xacro`
+- ✅ Improved Export Pipeline
+- ✅ Updated URDF/Xacro Generation
+- ✅ Better Package Structure
+- ✅ Improved Code Maintainability
 
 ---
 
-## 🔜 Coming in the Next Release
+# 🚧 Known Issues
 
-Development is currently focused on polishing the generated ROS 2 description package.
+FusionToDescription is still under active development.
+
+The following areas are currently being improved:
+
+- Joint origin extraction
+- Joint orientation generation
+- Joint axis calculation
+- Exported package syntax validation
+
+Some complex robot assemblies may still require minor manual adjustments before simulation.
+
+---
+
+# 🔜 Coming in the Next Release
+
+Development is now focused on improving the robot kinematic pipeline and export reliability.
 
 Planned improvements include:
 
-- ✅ Resolving the remaining syntax issues in the exported package
-- 🎨 UI refinements and workflow enhancements
-- ⚡ Improved export reliability and validation
-- 🛠️ General bug fixes and performance improvements
+- 🔗 Complete joint generation pipeline
+- 📐 Accurate joint origin extraction
+- 🧭 Improved joint orientation handling
+- ⚙️ Better URDF/Xacro validation
+- 🤖 More reliable ROS 2 description packages
+- 🎨 Additional UI improvements
+- ⚡ Faster export performance
+- 🛠️ General bug fixes and stability improvements
 
 Stay tuned for the next release!
