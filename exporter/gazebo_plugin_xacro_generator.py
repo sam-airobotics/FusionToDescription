@@ -73,7 +73,8 @@ class GazeboPluginXacroGenerator:
         }
 
         for link in self.robot.links:
-            gazebo_material = material_map.get(link.material, "Gazebo/Grey")
+            material_name = getattr(link.material, "name", None)
+            gazebo_material = material_map.get(material_name, "Gazebo/Grey")
             xacro += f"""
   <gazebo reference={quoteattr(link.name)}>
     <material>{gazebo_material}</material>

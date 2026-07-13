@@ -136,8 +136,9 @@ class URDFGenerator:
                 '            </geometry>\n'
             )
 
-            if link.material:
-                xml += f'            <material name={quoteattr(link.material)}/>\n'
+            material_name = getattr(link.material, "name", None)
+            if material_name:
+                xml += f'            <material name={quoteattr(material_name)}/>\n'
 
             xml += '        </visual>\n'
 
@@ -251,5 +252,5 @@ class URDFGenerator:
 
     def _mesh_uri(self, mesh, xacro):
         if xacro:
-            return f"file://$(find {self.robot.package_name})/meshes/{mesh}"
+            return f"package://{self.robot.package_name}/meshes/{mesh}"
         return f"package://{self.robot.package_name}/meshes/{mesh}"

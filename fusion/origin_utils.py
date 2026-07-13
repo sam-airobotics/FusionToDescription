@@ -95,6 +95,7 @@ def compute_joint_origin(
     parent_transform,
     child_transform,
     joint_position=None,
+    fallback_origin=None,
 ):
     """
     Compute a joint origin expressed in the parent link frame.
@@ -104,10 +105,14 @@ def compute_joint_origin(
         child_transform: Fusion transform of child occurrence.
         joint_position: Dict {"x","y","z"} representing the Fusion joint
                         geometry origin in world coordinates.
+        fallback_origin: Backward-compatible alias for joint_position.
 
     Returns:
         dict containing xyz and rpy.
     """
+
+    if joint_position is None:
+        joint_position = fallback_origin
 
     parent = _coerce_transform(parent_transform)
     child = _coerce_transform(child_transform)
