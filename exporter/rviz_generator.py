@@ -55,6 +55,17 @@ class RVizGenerator:
     def _build_rviz_config(self):
         """Build RViz configuration content."""
 
+        child_links = {joint.child for joint in self.robot.joints}
+        root_links = [link.name for link in self.robot.links if link.name not in child_links]
+        add_base_footprint = (
+            self.robot.get_link("base_link")
+            and not self.robot.get_link("base_footprint")
+            and "base_link" in root_links
+        )
+        fixed_frame = "base_footprint" if add_base_footprint else (
+            root_links[0] if root_links else self.robot.links[0].name
+        )
+
         config = f"""Panels:
 - Class: rviz_common/Displays
   Help Height: 78
@@ -82,12 +93,12 @@ Visualization Manager:
   Displays:
     - Alpha: 0.5
       Cell Size: 1
-      Class: rviz_common/Grid
+      Class: rviz_default_plugins/Grid
       Color: 160; 160; 164
       Enabled: true
       Line Style:
         Line Width: 0.03
-        Value: Line
+        Value: Lines
       Name: Grid
       Normal Cell Count: 0
       Offset:
@@ -98,8 +109,16 @@ Visualization Manager:
       Reference Frame: <Fixed Frame>
       Value: true
     - Alpha: 1
-      Class: rviz_common/RobotModel
-      Description Topic: robot_description
+      Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description File: ""
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_description
       Enabled: true
       Links:
         All Links Enabled: true
@@ -111,17 +130,17 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: world
+    Fixed Frame: {fixed_frame}
     Frame Rate: 30
   Name: root
   Tools:
-    - Class: rviz_common/Interact
+    - Class: rviz_default_plugins/Interact
       Hide Inactive Objects: true
-    - Class: rviz_common/MoveCamera
-    - Class: rviz_common/Select
-    - Class: rviz_common/FocusCamera
-    - Class: rviz_common/Measure
-    - Class: rviz_common/SetInitialPose
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/SetInitialPose
       Theta std deviation: 0.26179938779914946
       Topic:
         Depth: 5
@@ -131,7 +150,7 @@ Visualization Manager:
         Value: /initialpose
       X std deviation: 0.5
       Y std deviation: 0.5
-    - Class: rviz_common/SetGoal
+    - Class: rviz_default_plugins/SetGoal
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -142,7 +161,7 @@ Visualization Manager:
   Views:
     Current:
       Angle: 0
-      Class: rviz_common/Orbit
+      Class: rviz_default_plugins/Orbit
       Distance: 3
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
@@ -162,7 +181,7 @@ Visualization Manager:
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
       Yaw: 0.5
-    Saved Views: {{}}
+    Saved: ~
 Window Geometry:
   Displays:
     collapsed: false
