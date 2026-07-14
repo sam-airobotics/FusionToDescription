@@ -1,36 +1,22 @@
-def detect_collision_shape(body):
-    """Detect collision shape from a Fusion body.
-    
-    Args:
-        body: Fusion bRepBody object with geometry
-        
-    Returns:
-        Dict with detected shape ("Box", "Cylinder", "Sphere") and dimensions
+def detect_collision_shape(body, forced_shape=None):
     """
-    if not hasattr(body, 'boundingBox'):
-        raise ValueError(
-            f"Expected body object with boundingBox property, got {type(body)}"
-        )
-    
+    Detect collision geometry or use a user-selected shape.
+
+    Args:
+        body: Fusion BRepBody
+        forced_shape: Optional ("Box", "Cylinder", "Sphere")
+
+    Returns:
+        dict
+    """
+
     bbox = body.boundingBox
 
-    # Fusion's API reports lengths in centimetres; URDF geometry and inertia
-    # calculations must use metres.
     scale = 0.01
-    x = scale * abs(
-        bbox.maxPoint.x -
-        bbox.minPoint.x
-    )
 
-    y = scale * abs(
-        bbox.maxPoint.y -
-        bbox.minPoint.y
-    )
-
-    z = scale * abs(
-        bbox.maxPoint.z -
-        bbox.minPoint.z
-    )
+    x = abs(bbox.maxPoint.x - bbox.minPoint.x) * scale
+    y = abs(bbox.maxPoint.y - bbox.minPoint.y) * scale
+    z = abs(bbox.maxPoint.z - bbox.minPoint.z) * scale
 
     dims = sorted([x, y, z])
 
@@ -38,41 +24,56 @@ def detect_collision_shape(body):
     middle = dims[1]
     large = dims[2]
 
-    tolerance = 0.05
+    # -----------------------------
+    # User override
+    # -----------------------------
 
-    # --------------------------------
-    # Sphere
-    # --------------------------------
-
-    if (
-        abs(x - y) < tolerance and
-        abs(y - z) < tolerance
-    ):
-
+    if forced_shape == "Box":
         return {
-            "shape": "Sphere",
-            "radius": x / 2.0
-        }
-
-    # --------------------------------
-    # Cylinder
-    # --------------------------------
-
-    if abs(middle - large) < tolerance:
-
-        return {
-            "shape": "Cylinder",
-            "radius": middle / 2.0,
+            "shape": "Box",
+            "length": large,
+            "breadth": middle,
             "height": small
         }
 
-    # --------------------------------
-    # Box
-    # --------------------------------
+    elif forced_shape == "Cylinder":
+        return {
+            "shape": "Cylinder",
+            "radius": middle / 2,
+            "height": small
+        }
+
+    elif forced_shape == "Sphere":
+        return {
+            "shape": "Sphere",
+            "radius": large / 2
+        }
+
+    # -----------------------------
+    # Automatic Detection
+    # -----------------------------
+
+    tolerance = 0.05
+
+    if (
+        abs(x-y) < tolerance and
+        abs(y-z) < tolerance
+    ):
+        return {
+            "shape":"Sphere",
+            "radius":large/2
+        }
+
+    elif abs(middle-large) < tolerance:
+        return {
+            "shape":"Cylinder",
+            "radius":middle/2,
+            "height":small
+        }
 
     return {
-        "shape": "Box",
-        "length": large,
-        "breadth": middle,
-        "height": small
+        "shape":"Box",
+        "length":large,
+        "breadth":middle,
+        "height":small
     }
