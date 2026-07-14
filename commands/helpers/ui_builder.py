@@ -152,3 +152,11 @@ def create_tab(parent, tab_id, tab_name):
         The created TabCommandInput
     """
     return parent.addTabCommandInput(tab_id, tab_name)
+
+def clear_group(group):
+    """Remove all inputs from a group."""
+
+    children = group.children
+
+    while children.count > 0:
+        children.item(children.count - 1).deleteMe()
