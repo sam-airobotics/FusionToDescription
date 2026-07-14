@@ -8,7 +8,6 @@ FIXED: Added config parameter for consistency
 
 from .file_writer import FileWriter
 
-
 class RVizGenerator:
 
     def __init__(
@@ -53,11 +52,15 @@ class RVizGenerator:
     # =====================================================
 
     def _build_rviz_config(self):
-      """Build RViz configuration content compatible with ROS 2 Humble/Jazzy."""
+        """Build RViz configuration content compatible with ROS 2 Humble/Jazzy."""
 
-    fixed_frame = "base_footprint"
+        fixed_frame = (
+            "base_footprint"
+            if any(link.name == "base_footprint" for link in self.robot.links)
+            else "base_link"
+        )
 
-    config = f"""Panels:
+        config = f"""Panels:
 - Class: rviz_common/Displays
   Name: Displays
 - Class: rviz_common/Selection
@@ -155,5 +158,5 @@ Window Geometry:
   Height: 900
   Width: 1400
 """
-    
-    return config
+
+        return config
