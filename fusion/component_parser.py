@@ -1,25 +1,21 @@
 from .collision_detector import (
-    detect_collision_shape
+    get_body_dimensions,
+    build_collision
 )
 
 import adsk.core
-from ..utils.logger import Logger
 
 
 def get_component_data():
-    """Extract component data including collision and mesh info.
-    
-    Returns:
-        List of dicts with component name, collision, and mesh filename
-    """
-    app = adsk.core.Application.get()
+    """Extract component data including dimensions, collision and mesh info."""
 
+    app = adsk.core.Application.get()
     design = app.activeProduct
 
-    data = []
-
     if not design:
-        return data
+        return []
+
+    data = []
 
     root = design.rootComponent
 
@@ -32,21 +28,21 @@ def get_component_data():
 
         body = component.bRepBodies.item(0)
 
-        collision = detect_collision_shape(
-            body
+        dimensions = get_body_dimensions(body)
+
+        collision = build_collision(
+            dimensions,
+            "Box"      # default shape (or auto-detected if you keep that feature)
         )
-        
-        # Generate mesh filename based on component name
+
         mesh_filename = f"{component.name}.stl"
 
         data.append({
-
             "name": component.name,
-            
+            "body": body,
             "mesh": mesh_filename,
-
+            "dimensions": dimensions,
             "collision": collision
-
         })
 
     return data
