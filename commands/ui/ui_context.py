@@ -15,7 +15,8 @@ manual_shape_group = None
 # Stores collision info groups for each component
 collision_groups = {}
 
-
+# Stores parsed component data
+component_data = {}
 # ------------------------------------------------------------------
 # Primitive Collision Group
 # ------------------------------------------------------------------
@@ -73,10 +74,46 @@ def get_collision_group(component_name):
     """
     return collision_groups.get(component_name)
 
+# ------------------------------------------------------------------
+# Component Data
+# ------------------------------------------------------------------
 
-def clear_collision_groups():
+def set_component_data(components):
+    """Store parsed component data."""
+
+    component_data.clear()
+
+    for component in components:
+        component_data[component["name"]] = component
+
+
+def get_component(component_name):
     """
-    Clear all stored collision group references.
-    Call this when the command is destroyed.
+    Get a component by name.
+
+    Args:
+        component_name: Component name
+
+    Returns:
+        Component dictionary or None
     """
+    return component_data.get(component_name)
+
+
+def get_all_components():
+    """
+    Return all cached components.
+    """
+    return list(component_data.values())
+
+def clear():
+    """Clear all cached UI state."""
+
+    global primitive_group
+    global manual_shape_group
+
+    primitive_group = None
+    manual_shape_group = None
+
     collision_groups.clear()
+    component_data.clear()
