@@ -10,17 +10,18 @@ import traceback
 from .helpers.input_utils import (
     get_bool_value,
     get_selected_item,
+    get_selected_name,
     set_visibility,
     set_numeric_value
 )
 
 from .ui import ui_context
 
-from ..fusion.component_parser import get_component_data
 from ..fusion.inertia_calculator import calculate_inertia
 
+from ..fusion.collision_detector import build_collision
 
-class InputChangedHandler(adsk.core.InputChangedEventHandler):
+class InputChangedHandler(adsk.core.InputChangedEventHandler):    
     """Handles input changed events for dynamic UI updates."""
 
     def __init__(self, app_ref, ui_ref):
@@ -55,6 +56,9 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
             # Handle primitive mode changes
             elif changed_input.id == "primitive_mode":
                 self._handle_primitive_mode_change(inputs)
+
+            elif changed_input.id.endswith("_collision"):
+                self._handle_collision_shape_change(inputs, changed_input)
 
             # Handle mass value changes (auto-calculate inertia)
             elif changed_input.id.endswith("_mass"):
@@ -115,19 +119,13 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
         except:
             return
 
-        # Find component geometry
-        components = get_component_data()
-        collision = None
-        shape = None
+        component = ui_context.get_component(link_name)
 
-        for component in components:
-            if component["name"] == link_name:
-                collision = component.get("collision", {})
-                shape = collision.get("shape", "Box")
-                break
-
-        if not collision:
+        if component is None:
             return
+        
+        collision = component["collision"]
+        shape = collision["shape"]
 
         # Calculate new inertia
         try:
@@ -140,3 +138,67 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
 
         except Exception as e:
             print(f"Error calculating inertia: {str(e)}")
+
+    def _handle_collision_shape_change(self, inputs, changed_input):
+        """Handle collision shape dropdown changes."""
+        
+        from .ui.simulation_tab import refresh_collision_info
+        
+        component_name = changed_input.id.replace("_collision", "")
+        selected_shape = changed_input.selectedItem.name
+    
+        # Retrieve the cached component
+        component = ui_context.get_component(component_name)
+    
+        if component is None:
+            return
+    
+        # Build the new collision geometry from the stored dimensions
+        collision = build_collision(
+            component["dimensions"],
+            selected_shape
+        )
+    
+        # Update the cached collision data
+        component["collision"] = collision
+
+        if get_bool_value(inputs, "auto_inertia"):
+        
+            try:
+        
+                mass_input = inputs.itemById(f"{component_name}_mass")
+        
+                if mass_input:
+        
+                    inertia = calculate_inertia(
+                        collision["shape"],
+                        mass_input.value,
+                        collision
+                    )
+        
+                    set_numeric_value(
+                        inputs,
+                        f"{component_name}_ixx",
+                        inertia["ixx"]
+                    )
+        
+                    set_numeric_value(
+                        inputs,
+                        f"{component_name}_iyy",
+                        inertia["iyy"]
+                    )
+        
+                    set_numeric_value(
+                        inputs,
+                        f"{component_name}_izz",
+                        inertia["izz"]
+                    )
+        
+            except Exception:
+                pass
+        
+        # Refresh the UI
+        refresh_collision_info(
+            component_name,
+            collision
+        )
