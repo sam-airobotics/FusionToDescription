@@ -18,15 +18,17 @@ from .urdf_generator import URDFGenerator
 
 from .robot_xacro_generator import RobotXacroGenerator
 from .materials_xacro_generator import MaterialsXacroGenerator
+from .links_xacro_generator import LinksXacroGenerator
+from .joints_xacro_generator import JointsXacroGenerator
 from .gazebo_plugin_xacro_generator import GazeboPluginXacroGenerator
 
+from .robot_state_publisher_generator import RobotStatePublisherGenerator
+from .display_launch_generator import DisplayLaunchGenerator
 from .launch_generator import LaunchGenerator
 
 from .gazebo_generator import GazeboGenerator
 from .rviz_generator import RVizGenerator
 from .ros2_control_generator import ROS2ControlGenerator
-
-from ..commands.ui import ui_context
 
 
 class ExportManager:
@@ -38,70 +40,6 @@ class ExportManager:
 
         self.config = config
 
-    # =====================================================
-    # Apply Material Colors
-    # =====================================================
-
-    def _apply_material_colors(self, robot):
-        """
-        Apply user-selected visualization colors while
-        preserving the original Fusion material names.
-        """
-
-        Logger.info(
-            "Applying user material colors..."
-        )
-
-        color_map = {
-
-            "Default": (0.7, 0.7, 0.7, 1.0),
-
-            "White":  (1.0, 1.0, 1.0, 1.0),
-            "Black":  (0.0, 0.0, 0.0, 1.0),
-            "Gray":   (0.5, 0.5, 0.5, 1.0),
-            "Silver": (0.75, 0.75, 0.75, 1.0),
-
-            "Red":    (1.0, 0.0, 0.0, 1.0),
-            "Green":  (0.0, 1.0, 0.0, 1.0),
-            "Blue":   (0.0, 0.0, 1.0, 1.0),
-
-            "Yellow": (1.0, 1.0, 0.0, 1.0),
-            "Orange": (1.0, 0.5, 0.0, 1.0),
-            "Purple": (0.6, 0.2, 0.8, 1.0),
-        }
-
-        for link in robot.links:
-
-            dropdown = ui_context.get_material_dropdown(
-                link.name
-            )
-
-            if dropdown is None:
-                continue
-
-            if dropdown.selectedItem is None:
-                continue
-
-            if link.material is None:
-                continue
-
-            selected_color = dropdown.selectedItem.name
-
-            rgba = color_map.get(
-                selected_color,
-                color_map["Default"]
-            )
-
-            link.material.color.r = rgba[0]
-            link.material.color.g = rgba[1]
-            link.material.color.b = rgba[2]
-            link.material.color.a = rgba[3]
-
-            Logger.info(
-                f"{link.name} -> {link.material.name} "
-                f"({selected_color})"
-            )
-            
     # =====================================================
     # Export
     # =====================================================
@@ -156,12 +94,6 @@ class ExportManager:
                 raise RuntimeError(
                     "Failed to build RobotModel."
                 )
-            
-            # ---------------------------------------------
-            # Apply User Material Colors
-            # ---------------------------------------------
-
-            self._apply_material_colors(robot)
 
             # -------------------------------------------------
             # Validate Robot Model
@@ -192,7 +124,8 @@ class ExportManager:
 
             PackageXMLGenerator(
                 robot,
-                package
+                package,
+                self.config
             ).generate()
 
             CMakeGenerator(
@@ -212,13 +145,25 @@ class ExportManager:
                 self.config
             ).generate()
 
+            LinksXacroGenerator(
+                robot,
+                package,
+                self.config
+            ).generate()
+
+            JointsXacroGenerator(
+                robot,
+                package,
+                self.config
+            ).generate()
+
             if self.config.generate_gazebo:
 
                 GazeboPluginXacroGenerator(
                     robot,
                     package,
-                    self.config
-                ).generate()
+                self.config
+            ).generate()
 
             if self.config.generate_ros2_control:
 
@@ -246,8 +191,8 @@ class ExportManager:
                 URDFGenerator(
                     robot,
                     package,
-                    self.config
-                ).generate()
+                self.config
+            ).generate()
 
             # -------------------------------------------------
             # ros2_control
@@ -260,8 +205,8 @@ class ExportManager:
                 ROS2ControlGenerator(
                     robot,
                     package,
-                    self.config
-                ).generate()
+                self.config
+            ).generate()
 
             # -------------------------------------------------
             # Gazebo
@@ -274,8 +219,8 @@ class ExportManager:
                 GazeboGenerator(
                     robot,
                     package,
-                    self.config
-                ).generate()
+                self.config
+            ).generate()
 
             # -------------------------------------------------
             # RViz
@@ -287,8 +232,7 @@ class ExportManager:
 
                 RVizGenerator(
                     robot,
-                    package,
-                    self.config
+                    package
                 ).generate()
 
             # -------------------------------------------------
@@ -298,6 +242,17 @@ class ExportManager:
             if self.config.generate_launch:
 
                 Logger.info("Generating launch files...")
+
+                RobotStatePublisherGenerator(
+                    robot,
+                    package
+                ).generate()
+
+                DisplayLaunchGenerator(
+                    robot,
+                    package,
+                self.config
+            ).generate()
 
                 LaunchGenerator(
                     robot,

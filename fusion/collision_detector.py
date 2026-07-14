@@ -14,17 +14,20 @@ def detect_collision_shape(body):
     
     bbox = body.boundingBox
 
-    x = abs(
+    # Fusion's API reports lengths in centimetres; URDF geometry and inertia
+    # calculations must use metres.
+    scale = 0.01
+    x = scale * abs(
         bbox.maxPoint.x -
         bbox.minPoint.x
     )
 
-    y = abs(
+    y = scale * abs(
         bbox.maxPoint.y -
         bbox.minPoint.y
     )
 
-    z = abs(
+    z = scale * abs(
         bbox.maxPoint.z -
         bbox.minPoint.z
     )

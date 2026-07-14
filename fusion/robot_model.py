@@ -16,8 +16,7 @@ from .mass_extractor import get_mass_data
 from .inertia_calculator import calculate_inertia
 from .material_parser import MaterialParser
 from .mesh_exporter import MeshExporter
-from .joint_tree import orient_joints
-from .material import Material
+
 
 # ==========================================================
 # Link
@@ -30,9 +29,7 @@ class Link:
 
     mesh: str = ""
 
-    material: Material = field(
-        default_factory=Material
-    )
+    material: str = "Default"
 
     mass: float = 0.0
 
@@ -70,13 +67,13 @@ class Joint:
 
     child: str
 
-    origin: dict = field(
-        default_factory=dict
-    )
+    # Keep Fusion transforms and axes intact through the model.  XML
+    # generators perform the final URDF xyz/rpy conversion.
+    joint_frame: object = None
 
-    axis: dict = field(
-        default_factory=dict
-    )
+    origin_transform: object = None
+
+    axis: object = None
 
     limits: dict = field(
         default_factory=dict
@@ -194,16 +191,13 @@ class RobotModelBuilder:
                 joint_type=j["type"],
                 parent=j["parent"],
                 child=j["child"],
-                origin=j["origin"],
-                axis=j["axis"]
+                joint_frame=j["joint_frame"],
+                origin_transform=j["origin_transform"],
+                axis=j["axis"],
+                limits=j["limits"]
             )
             for j in joint_dicts
         ]
-
-        # Fusion joint endpoints have no parent/child semantics.  URDF joints
-        # must form a directed tree, so orient the graph from base_link before
-        # validation and generation.
-        orient_joints(self.robot.joints)
 
         # ----------------------------------------------
         # Transforms

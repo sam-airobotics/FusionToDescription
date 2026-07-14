@@ -1,11 +1,10 @@
 """
 materials_xacro_generator.py
 
-Generates the materials.xacro file containing visual
-material definitions extracted from the RobotModel.
-"""
+Generates the materials.xacro file containing visual material definitions.
 
-from xml.sax.saxutils import quoteattr
+FIXED: Added config parameter for consistency
+"""
 
 from .file_writer import FileWriter
 
@@ -20,77 +19,77 @@ class MaterialsXacroGenerator:
     ):
         """
         Initialize materials xacro generator.
+        
+        Args:
+            robot: RobotModel instance
+            package_creator: PackageCreator instance
+            config: ExportConfig instance (optional)
         """
 
         self.robot = robot
         self.package = package_creator
-        self.config = config
+        self.config = config  # ✅ ADDED
 
         self.writer = FileWriter(
             self.package.package_directory()
         )
 
     # =====================================================
-    # Generate
+    # Generate Materials Xacro
     # =====================================================
 
     def generate(self):
+        """Generate the materials.xacro file."""
+
+        xacro = self._build_xacro()
 
         self.writer.write_file(
-            "urdf/materials.xacro",
-            self._build_xacro()
+            f"urdf/materials.xacro",
+            xacro
         )
 
     # =====================================================
-    # Build
+    # Build Materials Xacro
     # =====================================================
 
     def _build_xacro(self):
+        """Build materials xacro content."""
 
-        xacro = """<?xml version="1.0"?>
+        xacro = f"""<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="{self.robot.robot_name}">
 
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- ============================= -->
+  <!-- Material Definitions          -->
+  <!-- ============================= -->
 
-    <!-- ================================================= -->
-    <!-- Material Definitions                              -->
-    <!-- ================================================= -->
-"""
+  <material name="Default">
+    <color rgba="0.8 0.8 0.8 1.0"/>
+  </material>
 
-        exported = set()
+  <material name="Silver">
+    <color rgba="0.7 0.7 0.7 1.0"/>
+  </material>
 
-        for link in self.robot.links:
+  <material name="Black">
+    <color rgba="0.1 0.1 0.1 1.0"/>
+  </material>
 
-            material = link.material
+  <material name="Red">
+    <color rgba="1.0 0.0 0.0 1.0"/>
+  </material>
 
-            if material is None:
-                continue
+  <material name="Green">
+    <color rgba="0.0 1.0 0.0 1.0"/>
+  </material>
 
-            if not material.name:
-                continue
+  <material name="Blue">
+    <color rgba="0.0 0.0 1.0 1.0"/>
+  </material>
 
-            if material.name in exported:
-                continue
+  <material name="Yellow">
+    <color rgba="1.0 1.0 0.0 1.0"/>
+  </material>
 
-            exported.add(material.name)
-
-            color = material.color
-
-            if color is None:
-                r = g = b = 0.7
-                a = 1.0
-            else:
-                r = color.r
-                g = color.g
-                b = color.b
-                a = color.a
-
-            xacro += f"""
-    <material name={quoteattr(material.name)}>
-        <color rgba="{r:.6f} {g:.6f} {b:.6f} {a:.6f}"/>
-    </material>
-"""
-
-        xacro += """
 </robot>
 """
 

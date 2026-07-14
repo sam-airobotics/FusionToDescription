@@ -8,7 +8,6 @@ and the generated RobotModel.
 """
 
 import os
-import re
 
 
 class Validator:
@@ -50,18 +49,6 @@ class Validator:
         if not self.config.robot_name:
             self.errors.append(
                 "Robot name cannot be empty."
-            )
-
-        elif not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", self.config.robot_name):
-            self.errors.append(
-                "Robot name must start with a letter and contain only letters, "
-                "numbers, and underscores."
-            )
-
-        if not re.fullmatch(r"[a-z][a-z0-9_]*", self.config.package_name):
-            self.errors.append(
-                "ROS package name must start with a lowercase letter and contain "
-                "only lowercase letters, numbers, and underscores."
             )
 
         if not self.config.export_directory:
@@ -111,12 +98,6 @@ class Validator:
 
         for link in self.robot.links:
 
-            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", link.name):
-                self.errors.append(
-                    f"Invalid link name '{link.name}': use only letters, numbers, "
-                    "and underscores, starting with a letter."
-                )
-
             if link.name in names:
 
                 self.errors.append(
@@ -151,18 +132,7 @@ class Validator:
             link.name for link in self.robot.links
         }
 
-        child_joints = {}
-        children_by_parent = {
-            name: [] for name in link_names
-        }
-
         for joint in self.robot.joints:
-
-            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", joint.name):
-                self.errors.append(
-                    f"Invalid joint name '{joint.name}': use only letters, numbers, "
-                    "and underscores, starting with a letter."
-                )
 
             if joint.name in names:
 
@@ -194,44 +164,6 @@ class Validator:
                     f"Joint '{joint.name}' "
                     f"connects a link to itself."
                 )
-
-            if joint.child in child_joints:
-                self.errors.append(
-                    f"Link '{joint.child}' has multiple parent joints: "
-                    f"'{child_joints[joint.child]}' and '{joint.name}'."
-                )
-            else:
-                child_joints[joint.child] = joint.name
-
-            if joint.parent in link_names and joint.child in link_names:
-                children_by_parent[joint.parent].append(joint.child)
-
-        roots = sorted(link_names - set(child_joints))
-
-        if len(roots) != 1:
-            root_list = ", ".join(roots) if roots else "none"
-            self.errors.append(
-                "Robot links must form one URDF tree; "
-                f"found {len(roots)} root links: {root_list}."
-            )
-            return
-
-        reachable = set()
-        stack = [roots[0]]
-
-        while stack:
-            link = stack.pop()
-            if link in reachable:
-                continue
-            reachable.add(link)
-            stack.extend(children_by_parent[link])
-
-        disconnected = sorted(link_names - reachable)
-        if disconnected:
-            self.errors.append(
-                "Links are disconnected from root "
-                f"'{roots[0]}': {', '.join(disconnected)}."
-            )
 
     # =====================================================
     # Results

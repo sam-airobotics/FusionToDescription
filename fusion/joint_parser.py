@@ -1,212 +1,162 @@
-import traceback
+"""Parse Fusion Joint and AsBuiltJoint objects into kinematic data."""
+
 import adsk.core
 import adsk.fusion
-
-from .origin_utils import compute_joint_origin
 
 
 app = adsk.core.Application.get()
 
 
 class JointParser:
-
     def __init__(self):
-
         self.design = app.activeProduct
-
         if not isinstance(self.design, adsk.fusion.Design):
             raise RuntimeError("No active Fusion Design.")
-
         self.root = self.design.rootComponent
-    
-    # ---------------------------------------------------------
-    # Parse All Joints
-    # ---------------------------------------------------------
 
     def parse(self):
-
-        joints = []
-
-        try:
-
-            for joint in self.root.joints:
-
-                joints.append(
-                    self._parse_joint(joint)
-                )
-
-        except Exception as e:
-            print(f"Error parsing joints: {str(e)}")
-            print(traceback.format_exc())
-
-        return joints
-
-    # ---------------------------------------------------------
-    # Parse Single Joint
-    # ---------------------------------------------------------
+        """Parse joints throughout the design, including subassemblies."""
+        # root.joints contains only joints created on the root component.
+        joints = getattr(self.root, "allJoints", None)
+        if joints is None:
+            joints = self.root.joints
+        return [self._parse_joint(joint) for joint in joints]
 
     def _parse_joint(self, joint):
-
-        parent = ""
-        child = ""
-        parent_transform = None
-        child_transform = None
-
+        # Fusion's occurrenceOne is the moving side.  URDF's parent is the
+        # grounded side, occurrenceTwo, and its child is occurrenceOne.
         try:
+            parent_occurrence = joint.occurrenceTwo
+            child_occurrence = joint.occurrenceOne
+            parent = parent_occurrence.component.name
+            child = child_occurrence.component.name
+        except AttributeError as error:
+            raise RuntimeError(
+                f"Joint '{joint.name}' has no valid parent/child occurrences."
+            ) from error
 
-            parent = (
-                joint.occurrenceOne.component.name
-            )
-            parent_transform = joint.occurrenceOne.transform2
-
-        except Exception as e:
-            parent = ""
-            parent_transform = None
-            # silently handle missing parent reference
-
-        try:
-
-            child = (
-                joint.occurrenceTwo.component.name
-            )
-            child_transform = joint.occurrenceTwo.transform2
-
-        except Exception as e:
-            child = ""
-            child_transform = None
-            # silently handle missing child reference
-
-        joint_type = self._joint_type(joint)
-
-        origin = self._joint_origin(joint, parent_transform, child_transform)
-
-        axis = self._joint_axis(joint)
+        limits = self._joint_limits(joint)
+        joint_type = self._joint_type(joint, limits)
+        joint_frame = self._joint_frame(joint)
+        origin_transform = self._relative_transform(
+            parent_occurrence.transform2, joint_frame, joint.name
+        )
 
         return {
-
             "name": joint.name,
-
             "type": joint_type,
-
             "parent": parent,
-
             "child": child,
-
-            "origin": origin,
-
-            "axis": axis
-
+            # Retain Matrix3D objects until URDF generation.  They are the
+            # authoritative source for position and orientation.
+            "joint_frame": joint_frame,
+            "origin_transform": origin_transform,
+            "axis": self._joint_axis(joint, joint_frame, joint_type),
+            "limits": limits,
         }
 
-    # ---------------------------------------------------------
-    # Joint Type
-    # ---------------------------------------------------------
-
-    def _joint_type(self, joint):
-
+    def _joint_type(self, joint, limits):
         motion = joint.jointMotion
-
-        if isinstance(
-            motion,
-            adsk.fusion.RevoluteJointMotion
-        ):
-            return "revolute"
-
-        if isinstance(
-            motion,
-            adsk.fusion.SliderJointMotion
-        ):
+        if isinstance(motion, adsk.fusion.RevoluteJointMotion):
+            return "revolute" if limits else "continuous"
+        if isinstance(motion, adsk.fusion.SliderJointMotion):
             return "prismatic"
-
-        if isinstance(
-            motion,
-            adsk.fusion.RigidJointMotion
-        ):
+        if isinstance(motion, adsk.fusion.RigidJointMotion):
             return "fixed"
-
-        if isinstance(
-            motion,
-            adsk.fusion.CylindricalJointMotion
-        ):
+        if isinstance(motion, adsk.fusion.CylindricalJointMotion):
             return "cylindrical"
-
-        if isinstance(
-            motion,
-            adsk.fusion.PinSlotJointMotion
-        ):
+        if isinstance(motion, adsk.fusion.PinSlotJointMotion):
             return "planar"
-
-        if isinstance(
-            motion,
-            adsk.fusion.BallJointMotion
-        ):
+        if isinstance(motion, adsk.fusion.BallJointMotion):
             return "floating"
-
         return "fixed"
 
-    # ---------------------------------------------------------
-    # Joint Origin
-    # ---------------------------------------------------------
+    @staticmethod
+    def _joint_limits(joint):
+        """Return enabled limits in URDF units (metres and radians)."""
+        motion = joint.jointMotion
+        if isinstance(motion, adsk.fusion.RevoluteJointMotion):
+            limits, scale = motion.rotationLimits, 1.0
+        elif isinstance(motion, adsk.fusion.SliderJointMotion):
+            limits, scale = motion.slideLimits, 0.01  # Fusion centimetres.
+        else:
+            return {}
 
-    def _joint_origin(
-        self,
-        joint,
-        parent_transform=None,
-        child_transform=None
-    ):
-        """Return the joint origin expressed in the parent link frame."""
+        if not (
+            limits.isMinimumValueEnabled and limits.isMaximumValueEnabled
+        ):
+            return {}
+        return {
+            "lower": limits.minimumValue * scale,
+            "upper": limits.maximumValue * scale,
+        }
 
+    def _joint_frame(self, joint):
+        """Build the world-frame Matrix3D for a Joint or AsBuiltJoint."""
+        geometry = self._joint_geometry(joint)
         try:
-
-            geometry = joint.geometry
-            joint_position = geometry.origin
-
-            return compute_joint_origin(
-                parent_transform=parent_transform,
-                child_transform=child_transform,
-                joint_position={
-                    "x": joint_position.x,
-                    "y": joint_position.y,
-                    "z": joint_position.z,
-                }
+            frame = adsk.core.Matrix3D.create()
+            frame.setWithCoordinateSystem(
+                geometry.origin,
+                geometry.secondaryAxisVector,
+                geometry.thirdAxisVector,
+                geometry.primaryAxisVector,
             )
+            return frame
+        except AttributeError as error:
+            raise RuntimeError(
+                f"Joint '{joint.name}' does not expose a usable origin and axes."
+            ) from error
 
-        except Exception:
-
-            return {
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0,
-                "roll": 0.0,
-                "pitch": 0.0,
-                "yaw": 0.0,
-            }
-    # ---------------------------------------------------------
-    # Joint Axis
-    # ---------------------------------------------------------
-
-    def _joint_axis(self, joint):
-
-        try:
-
+    @staticmethod
+    def _joint_geometry(joint):
+        """Return geometry from either Fusion joint API without a fallback."""
+        if hasattr(joint, "geometry"):
             geometry = joint.geometry
+        else:
+            geometry = getattr(joint, "geometryOrOriginTwo", None)
+            # An AsBuiltJoint can return a JointOrigin; unwrap its geometry.
+            if geometry is not None and hasattr(geometry, "geometry"):
+                geometry = geometry.geometry
 
-            axis = geometry.primaryAxisVector
+        if geometry is None:
+            raise RuntimeError(
+                f"Joint '{joint.name}' has no joint geometry or joint origin."
+            )
+        return geometry
 
-            return {
+    @staticmethod
+    def _relative_transform(parent_transform, joint_frame, joint_name):
+        """Calculate parent^-1 * joint while retaining Matrix3D precision."""
+        try:
+            relative = parent_transform.copy()
+            if not relative.invert():
+                raise RuntimeError("parent transform is not invertible")
+            relative.transformBy(joint_frame)
+            return relative
+        except Exception as error:
+            raise RuntimeError(
+                f"Unable to compute parent-relative transform for joint '{joint_name}'."
+            ) from error
 
-                "x": axis.x,
-                "y": axis.y,
-                "z": axis.z
+    def _joint_axis(self, joint, joint_frame, joint_type):
+        """Express Fusion's world-frame motion axis in joint coordinates."""
+        if joint_type == "fixed":
+            return None
 
-            }
+        motion = joint.jointMotion
+        if joint_type in ("revolute", "continuous", "cylindrical", "planar"):
+            axis = getattr(motion, "rotationAxisVector", None)
+        elif joint_type == "prismatic":
+            axis = getattr(motion, "slideDirectionVector", None)
+        else:
+            axis = None
+        if axis is None:
+            raise RuntimeError(f"Joint '{joint.name}' has no motion axis.")
 
-        except Exception as e:
-            # Return default z-axis if extraction fails
-            return {
-
-                "x": 0.0,
-                "y": 0.0,
-                "z": 1.0
-
-            }
+        # R_joint^T * axis_world
+        return (
+            joint_frame.getCell(0, 0) * axis.x + joint_frame.getCell(1, 0) * axis.y + joint_frame.getCell(2, 0) * axis.z,
+            joint_frame.getCell(0, 1) * axis.x + joint_frame.getCell(1, 1) * axis.y + joint_frame.getCell(2, 1) * axis.z,
+            joint_frame.getCell(0, 2) * axis.x + joint_frame.getCell(1, 2) * axis.y + joint_frame.getCell(2, 2) * axis.z,
+        )

@@ -1,13 +1,12 @@
 """
 robot_xacro_generator.py
 
-Generates the main robot Xacro file.
+Generates the main robot.urdf.xacro file from the RobotModel.
+
+FIXED: Added config parameter for future enhancements
 """
 
-from xml.sax.saxutils import quoteattr
-
 from .file_writer import FileWriter
-from .urdf_generator import URDFGenerator
 
 
 class RobotXacroGenerator:
@@ -18,158 +17,82 @@ class RobotXacroGenerator:
         package_creator,
         config=None
     ):
+        """
+        Initialize robot xacro generator.
+        
+        Args:
+            robot: RobotModel instance
+            package_creator: PackageCreator instance
+            config: ExportConfig instance (optional)
+        """
 
         self.robot = robot
         self.package = package_creator
-        self.config = config
+        self.config = config  # ✅ ADDED: For future conditional generation
 
         self.writer = FileWriter(
             self.package.package_directory()
         )
 
     # =====================================================
-    # Generate
+    # Generate Main Robot Xacro
     # =====================================================
 
     def generate(self):
+        """Generate the main robot.xacro file."""
+
+        xacro = self._build_xacro()
 
         self.writer.write_file(
             f"urdf/{self.robot.robot_name}.xacro",
-            self._build_xacro()
+            xacro
         )
 
     # =====================================================
-    # Build
+    # Build Robot Xacro
     # =====================================================
 
     def _build_xacro(self):
+        """Build the main Xacro file content."""
 
         package = self.robot.package_name
-
-        renderer = URDFGenerator(
-            self.robot,
-            self.package,
-            self.config
-        )
+        robot_name = self.robot.robot_name
 
         xacro = f"""<?xml version="1.0"?>
-<robot
-    xmlns:xacro="http://www.ros.org/wiki/xacro"
-    name={quoteattr(self.robot.robot_name)}>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="{robot_name}">
 
-    <!-- ============================================== -->
-    <!-- Material Definitions                           -->
-    <!-- ============================================== -->
+  <!-- ============================= -->
+  <!-- Include Sub-Xacro Files      -->
+  <!-- ============================= -->
 
-    <xacro:include
-        filename="$(find {package})/urdf/materials.xacro"/>
-
+  <xacro:include filename="$(find {package})/urdf/materials.xacro"/>
+  <xacro:include filename="$(find {package})/urdf/links.xacro"/>
+  <xacro:include filename="$(find {package})/urdf/joints.xacro"/>
 """
 
-        # -------------------------------------------------
-        # Gazebo
-        # -------------------------------------------------
-
+        # ✅ ADDED: Conditional includes based on config
         if self.config and self.config.generate_gazebo:
-
-            xacro += f"""
-    <xacro:include
-        filename="$(find {package})/urdf/gazebo.xacro"/>
-
+            xacro += f"""  <xacro:include filename="$(find {package})/urdf/gazebo.xacro"/>
 """
-
-        # -------------------------------------------------
-        # ros2_control
-        # -------------------------------------------------
 
         if self.config and self.config.generate_ros2_control:
-
-            xacro += f"""
-    <!--
-    <xacro:include
-        filename="$(find {package})/urdf/ros2_control.xacro"/>
-    -->
-
+            xacro += f"""  <!-- <xacro:include filename="$(find {package})/urdf/ros2_control.xacro"/> -->
 """
-
-        # -------------------------------------------------
-        # Base Footprint
-        # -------------------------------------------------
-
-        if self._needs_base_footprint():
-
-            xacro += """
-    <link name="base_footprint"/>
-
-    <joint
-        name="base_joint"
-        type="fixed">
-
-        <origin
-            xyz="0 0 0"
-            rpy="0 0 0"/>
-
-        <parent link="base_footprint"/>
-
-        <child link="base_link"/>
-
-    </joint>
-
-"""
-
-        # -------------------------------------------------
-        # Links
-        # -------------------------------------------------
 
         xacro += """
-    <!-- ============================================== -->
-    <!-- Links                                           -->
-    <!-- ============================================== -->
-"""
+  <!-- ============================= -->
+  <!-- Root Link (base_link)         -->
+  <!-- ============================= -->
 
-        for link in self.robot.links:
+  <link name="base_footprint"/>
 
-            xacro += renderer._generate_link(
-                link,
-                xacro=True
-            )
-
-        # -------------------------------------------------
-        # Joints
-        # -------------------------------------------------
-
-        xacro += """
-    <!-- ============================================== -->
-    <!-- Joints                                          -->
-    <!-- ============================================== -->
-"""
-
-        for joint in self.robot.joints:
-
-            xacro += renderer._generate_joint(
-                joint
-            )
-
-        xacro += """
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
 
 </robot>
 """
 
         return xacro
-
-    # =====================================================
-    # Base Footprint
-    # =====================================================
-
-    def _needs_base_footprint(self):
-
-        if self.robot.get_link("base_link") is None:
-            return False
-
-        if self.robot.get_link("base_footprint") is not None:
-            return False
-
-        return not any(
-            joint.child == "base_link"
-            for joint in self.robot.joints
-        )

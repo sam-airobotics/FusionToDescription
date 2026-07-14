@@ -1,8 +1,7 @@
 """
 Properties tab for the export dialog.
 
-Includes mass properties, inertia tensor configuration,
-and material visualization settings.
+Includes mass properties and inertia tensor configuration.
 """
 
 import adsk.core
@@ -17,22 +16,17 @@ from ..helpers.ui_builder import (
 from ...fusion.mass_extractor import get_mass_data
 from ...fusion.component_parser import get_component_data
 from ...fusion.inertia_calculator import calculate_inertia
-from ...fusion.material_parser import MaterialParser
-
-from . import ui_context
 
 
 def build_properties_tab(inputs):
-    """
-    Build the Properties tab UI.
-
+    """Build the Properties tab UI.
+    
     Args:
-        inputs: CommandInputs container
-
+        inputs: The command's commandInputs container
+        
     Returns:
-        Created TabCommandInput
+        The created TabCommandInput
     """
-
     properties_tab = inputs.addTabCommandInput(
         "properties_tab",
         "Properties"
@@ -40,10 +34,7 @@ def build_properties_tab(inputs):
 
     properties_inputs = properties_tab.children
 
-    # =====================================================
-    # Mass Properties
-    # =====================================================
-
+    # Mass Properties Group
     mass_group = create_group(
         properties_inputs,
         "mass_group",
@@ -59,10 +50,10 @@ def build_properties_tab(inputs):
         True
     )
 
+    # Add mass inputs for each component
     mass_data = get_mass_data()
 
     for link in mass_data:
-
         create_value_input(
             mass_group_inputs,
             f"{link['name']}_mass",
@@ -71,10 +62,7 @@ def build_properties_tab(inputs):
             link["mass"]
         )
 
-    # =====================================================
-    # Inertia Properties
-    # =====================================================
-
+    # Inertia Properties Group
     inertia_group = create_group(
         properties_inputs,
         "inertia_group",
@@ -83,6 +71,7 @@ def build_properties_tab(inputs):
 
     inertia_inputs = inertia_group.children
 
+    # Auto-calculate inertia checkbox
     create_bool_input(
         inertia_inputs,
         "auto_inertia",
@@ -90,143 +79,45 @@ def build_properties_tab(inputs):
         True
     )
 
-    mass_lookup = {
-        item["name"]: item["mass"]
-        for item in mass_data
-    }
+    # Build mass lookup table
+    mass_lookup = {item["name"]: item["mass"] for item in mass_data}
 
+    # Get component geometry
     components = get_component_data()
 
+    # Create inertia entries for each component
     for component in components:
-
         _build_component_inertia_group(
             inertia_inputs,
             component,
             mass_lookup
         )
 
-    # =====================================================
-    # Material Properties
-    # =====================================================
-
-    material_group = create_group(
-        properties_inputs,
-        "material_group",
-        "Material Properties"
-    )
-
-    material_inputs = material_group.children
-
-    create_text_box(
-        material_inputs,
-        "material_info",
-        "",
-        "Fusion material names are preserved. "
-        "Choose the visualization color used in RViz and Gazebo.",
-        2,
-        True
-    )
-
-    parser = MaterialParser()
-
-    materials = parser.parse()
-
-    visualization_colors = [
-        "Default",
-        "White",
-        "Black",
-        "Gray",
-        "Silver",
-        "Red",
-        "Green",
-        "Blue",
-        "Yellow",
-        "Orange",
-        "Purple"
-    ]
-
-    for component_name, material in materials.items():
-
-        # ---------------------------------------------
-        # Fusion Material Name (Read Only)
-        # ---------------------------------------------
-
-        create_text_box(
-            material_inputs,
-            f"{component_name}_material",
-            component_name,
-            material.name,
-            1,
-            True
-        )
-
-        # ---------------------------------------------
-        # Visualization Color
-        # ---------------------------------------------
-
-        dropdown = material_inputs.addDropDownCommandInput(
-            f"{component_name}_color",
-            f"{component_name} Color",
-            adsk.core.DropDownStyles.TextListDropDownStyle
-        )
-
-        for color in visualization_colors:
-
-            dropdown.listItems.add(
-                color,
-                color == "Default"
-            )
-
-        ui_context.register_material_dropdown(
-            component_name,
-            dropdown
-        )
-        
     return properties_tab
 
 
-def _build_component_inertia_group(
-    parent,
-    component,
-    mass_lookup
-):
+def _build_component_inertia_group(parent, component, mass_lookup):
+    """Build inertia group for a single component.
+    
+    Args:
+        parent: Parent UI container
+        component: Component data dict
+        mass_lookup: Dict mapping component names to masses
     """
-    Build inertia controls for one component.
-    """
-
     name = component["name"]
 
-    collision = component.get(
-        "collision",
-        {}
-    )
+    collision = component.get("collision", {})
+    shape = collision.get("shape", "Box")
 
-    shape = collision.get(
-        "shape",
-        "Box"
-    )
+    mass = mass_lookup.get(name, 1.0)
 
-    mass = mass_lookup.get(
-        name,
-        1.0
-    )
-
+    # Calculate inertia
     try:
+        inertia = calculate_inertia(shape, mass, collision)
+    except:
+        inertia = {"ixx": 0.0, "iyy": 0.0, "izz": 0.0}
 
-        inertia = calculate_inertia(
-            shape,
-            mass,
-            collision
-        )
-
-    except Exception:
-
-        inertia = {
-            "ixx": 0.0,
-            "iyy": 0.0,
-            "izz": 0.0
-        }
-
+    # Create group for this component
     group = create_group(
         parent,
         f"{name}_inertia_group",
@@ -235,6 +126,7 @@ def _build_component_inertia_group(
 
     group_inputs = group.children
 
+    # Display detected shape
     create_text_box(
         group_inputs,
         f"{name}_shape_display",
@@ -244,6 +136,7 @@ def _build_component_inertia_group(
         True
     )
 
+    # Inertia components
     create_value_input(
         group_inputs,
         f"{name}_ixx",
@@ -268,6 +161,7 @@ def _build_component_inertia_group(
         inertia["izz"]
     )
 
+    # Off-diagonal terms (usually zero)
     create_value_input(
         group_inputs,
         f"{name}_ixy",

@@ -13,7 +13,6 @@ import traceback
 import adsk.core
 import adsk.fusion
 
-from .material import Material
 
 app = adsk.core.Application.get()
 
@@ -61,32 +60,28 @@ class MaterialParser:
         component = occurrence.component
 
         # -------------------------------------------------
-        # Check Body Appearance
+        # Check Bodies
         # -------------------------------------------------
 
         for body in component.bRepBodies:
 
             if body.appearance:
 
-                return Material(
-                    name=body.appearance.name
-                )
+                return body.appearance.name
 
         # -------------------------------------------------
-        # Component Appearance
+        # Check Component Appearance
         # -------------------------------------------------
 
         if component.appearance:
 
-            return Material(
-                name=component.appearance.name
-            )
+            return component.appearance.name
 
         # -------------------------------------------------
-        # Default
+        # Default Material
         # -------------------------------------------------
 
-        return Material()
+        return "Default"
 
     # =====================================================
     # Get Material Dictionary

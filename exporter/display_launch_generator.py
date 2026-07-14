@@ -44,7 +44,7 @@ class DisplayLaunchGenerator:
         launch = self._build_launch()
 
         self.writer.write_file(
-            "launch/robot_state_publisher.launch.py",
+            "launch/display.launch.py",
             launch
         )
 

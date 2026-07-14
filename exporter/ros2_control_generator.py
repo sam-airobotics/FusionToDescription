@@ -155,10 +155,6 @@ joint_trajectory_controller:
     constraints:
       stopped_velocity_tolerance: 0.01
       goal_time: 0.0
-      {joint_name}: 
-        trajectory: 0.0
-        goal: 0.0
-
 # Joint State Broadcaster
 joint_state_broadcaster:
   ros__parameters:

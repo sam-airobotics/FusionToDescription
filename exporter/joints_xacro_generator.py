@@ -7,6 +7,7 @@ FIXED: Added config parameter for future enhancements
 """
 
 from .file_writer import FileWriter
+from ..fusion.origin_utils import axis_to_urdf, matrix_to_urdf_origin
 
 
 class JointsXacroGenerator:
@@ -79,8 +80,8 @@ class JointsXacroGenerator:
     def _generate_joint(self, joint):
         """Generate Xacro for a single joint."""
 
-        origin = joint.origin
-        axis = joint.axis
+        origin = matrix_to_urdf_origin(joint.origin_transform)
+        axis = axis_to_urdf(joint.axis) if joint.joint_type != "fixed" else None
 
         xml = f"""
   <joint name="{joint.name}" type="{joint.joint_type}">
