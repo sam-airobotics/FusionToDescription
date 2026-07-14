@@ -189,9 +189,24 @@ def _build_component_collision_entry(parent, component):
         f"{name} Collision"
     )
 
+    ui_context.register_collision_group(
+        name,
+        info_group
+    )
+
     info_inputs = info_group.children
 
-    # Detected shape display
+    _populate_collision_info(
+        info_inputs,
+        name,
+        collision
+    )
+
+def _populate_collision_info(info_inputs, name, collision):
+    """Populate collision parameter controls."""
+
+    shape = collision.get("shape", "Box")
+
     create_text_box(
         info_inputs,
         f"{name}_shape",
@@ -201,13 +216,13 @@ def _build_component_collision_entry(parent, component):
         True
     )
 
-    # Display collision parameters based on shape
     if shape == "Box":
+
         create_text_box(
             info_inputs,
             f"{name}_length",
             "Length (m)",
-            str(round(collision.get("length", 0.0), 4)),
+            f"{collision.get('length', 0.0):.4f}",
             1,
             True
         )
@@ -216,7 +231,7 @@ def _build_component_collision_entry(parent, component):
             info_inputs,
             f"{name}_breadth",
             "Breadth (m)",
-            str(round(collision.get("breadth", 0.0), 4)),
+            f"{collision.get('breadth', 0.0):.4f}",
             1,
             True
         )
@@ -225,17 +240,18 @@ def _build_component_collision_entry(parent, component):
             info_inputs,
             f"{name}_height",
             "Height (m)",
-            str(round(collision.get("height", 0.0), 4)),
+            f"{collision.get('height', 0.0):.4f}",
             1,
             True
         )
 
     elif shape == "Cylinder":
+
         create_text_box(
             info_inputs,
             f"{name}_radius",
             "Radius (m)",
-            str(round(collision.get("radius", 0.0), 4)),
+            f"{collision.get('radius', 0.0):.4f}",
             1,
             True
         )
@@ -244,17 +260,37 @@ def _build_component_collision_entry(parent, component):
             info_inputs,
             f"{name}_height",
             "Height (m)",
-            str(round(collision.get("height", 0.0), 4)),
+            f"{collision.get('height', 0.0):.4f}",
             1,
             True
         )
 
     elif shape == "Sphere":
+
         create_text_box(
             info_inputs,
             f"{name}_radius",
             "Radius (m)",
-            str(round(collision.get("radius", 0.0), 4)),
+            f"{collision.get('radius', 0.0):.4f}",
             1,
             True
         )
+
+def refresh_collision_info(name, collision):
+
+    group = ui_context.get_collision_group(name)
+
+    if group is None:
+        return
+
+    children = group.children
+
+    # Delete every existing control
+    while children.count > 0:
+        children.item(children.count - 1).deleteMe()
+
+    _populate_collision_info(
+        children,
+        name,
+        collision
+    )
