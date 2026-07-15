@@ -170,8 +170,13 @@ class RobotModelBuilder:
         # Components (name, mesh filename, collision shape)
         # ----------------------------------------------
 
-        component_data = get_component_data()
+        from ..commands.ui import ui_context
 
+        component_data = ui_context.get_all_components()
+        
+        if not component_data:
+            component_data = get_component_data()
+            
         self.robot.links = [
             Link(
                 name=item["name"],
