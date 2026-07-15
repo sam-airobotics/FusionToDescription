@@ -1,5 +1,6 @@
 from .collision_detector import (
     get_body_dimensions,
+    auto_detect_shape,
     build_collision
 )
 
