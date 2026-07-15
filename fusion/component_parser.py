@@ -30,9 +30,11 @@ def get_component_data():
 
         dimensions = get_body_dimensions(body)
 
+        shape = auto_detect_shape(dimensions)
+        
         collision = build_collision(
             dimensions,
-            "Box"      # default shape (or auto-detected if you keep that feature)
+            shape
         )
 
         mesh_filename = f"{component.name}.stl"
