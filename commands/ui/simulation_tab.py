@@ -147,6 +147,10 @@ def _build_manual_shapes_group(parent):
     # Get components
     components = get_component_data()
 
+    ui_context.set_component_data(
+        components
+    )
+    
     if not components:
         create_text_box(
             manual_inputs,
@@ -157,8 +161,11 @@ def _build_manual_shapes_group(parent):
             True
         )
     else:
-        for component in components:
-            _build_component_collision_entry(manual_inputs, component)
+        for component in ui_context.get_all_components():
+            _build_component_collision_entry(
+                manual_inputs,
+                component
+            )
 
 
 def _build_component_collision_entry(parent, component):
