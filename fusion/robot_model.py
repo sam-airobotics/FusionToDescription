@@ -11,7 +11,11 @@ from typing import List, Optional
 from .component_parser import get_component_data
 from .joint_parser import JointParser
 from .transform_parser import TransformParser
-from .collision_detector import detect_collision_shape
+from .collision_detector import (
+    get_body_dimensions,
+    auto_detect_shape,
+    build_collision
+)
 from .mass_extractor import get_mass_data
 from .inertia_calculator import calculate_inertia
 from .material_parser import MaterialParser
