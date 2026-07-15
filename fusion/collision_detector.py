@@ -1,13 +1,18 @@
-def detect_collision_shape(body, forced_shape=None):
-    """
-    Detect collision geometry or use a user-selected shape.
+"""
+Utilities for collision primitive generation.
+"""
 
-    Args:
-        body: Fusion BRepBody
-        forced_shape: Optional ("Box", "Cylinder", "Sphere")
+
+def get_body_dimensions(body):
+    """
+    Extract body dimensions from a Fusion BRepBody.
 
     Returns:
-        dict
+        {
+            "length": float,
+            "breadth": float,
+            "height": float
+        }
     """
 
     bbox = body.boundingBox
@@ -20,60 +25,74 @@ def detect_collision_shape(body, forced_shape=None):
 
     dims = sorted([x, y, z])
 
-    small = dims[0]
-    middle = dims[1]
-    large = dims[2]
+    return {
+        "length": dims[2],
+        "breadth": dims[1],
+        "height": dims[0]
+    }
 
-    # -----------------------------
-    # User override
-    # -----------------------------
 
-    if forced_shape == "Box":
-        return {
-            "shape": "Box",
-            "length": large,
-            "breadth": middle,
-            "height": small
-        }
+def auto_detect_shape(dimensions):
+    """
+    Automatically determine the best primitive shape.
 
-    elif forced_shape == "Cylinder":
-        return {
-            "shape": "Cylinder",
-            "radius": middle / 2,
-            "height": small
-        }
+    Returns:
+        "Box", "Cylinder" or "Sphere"
+    """
 
-    elif forced_shape == "Sphere":
-        return {
-            "shape": "Sphere",
-            "radius": large / 2
-        }
-
-    # -----------------------------
-    # Automatic Detection
-    # -----------------------------
+    length = dimensions["length"]
+    breadth = dimensions["breadth"]
+    height = dimensions["height"]
 
     tolerance = 0.05
 
     if (
-        abs(x-y) < tolerance and
-        abs(y-z) < tolerance
+        abs(length - breadth) < tolerance and
+        abs(breadth - height) < tolerance
     ):
+        return "Sphere"
+
+    if abs(length - breadth) < tolerance:
+        return "Cylinder"
+
+    return "Box"
+
+
+def build_collision(dimensions, shape):
+    """
+    Build collision parameters from dimensions.
+
+    Args:
+        dimensions: Dictionary returned by get_body_dimensions()
+        shape: Box, Cylinder or Sphere
+
+    Returns:
+        Collision dictionary
+    """
+
+    length = dimensions["length"]
+    breadth = dimensions["breadth"]
+    height = dimensions["height"]
+
+    if shape == "Box":
         return {
-            "shape":"Sphere",
-            "radius":large/2
+            "shape": "Box",
+            "length": length,
+            "breadth": breadth,
+            "height": height
         }
 
-    elif abs(middle-large) < tolerance:
+    if shape == "Cylinder":
         return {
-            "shape":"Cylinder",
-            "radius":middle/2,
-            "height":small
+            "shape": "Cylinder",
+            "radius": breadth / 2.0,
+            "height": height
         }
 
-    return {
-        "shape":"Box",
-        "length":large,
-        "breadth":middle,
-        "height":small
-    }
+    if shape == "Sphere":
+        return {
+            "shape": "Sphere",
+            "radius": max(length, breadth, height) / 2.0
+        }
+
+    raise ValueError(f"Unsupported collision shape: {shape}")
