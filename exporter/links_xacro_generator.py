@@ -10,7 +10,7 @@ FIXED:
 """
 
 from .file_writer import FileWriter
-
+from ..fusion.origin_utils import matrix_to_urdf_origin
 
 class LinksXacroGenerator:
 
@@ -85,11 +85,26 @@ class LinksXacroGenerator:
         xml = f"""
   <link name="{link.name}">
 """
+        origin = {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "roll": 0,
+            "pitch": 0,
+            "yaw": 0
+        }
+
+        if link.origin_transform is not None:
+            origin = matrix_to_urdf_origin(
+                link.origin_transform
+            )
 
         # Visual
         if link.mesh:
             xml += f"""    <visual>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <origin
+        xyz="{origin['x']} {origin['y']} {origin['z']}"
+        rpy="{origin['roll']} {origin['pitch']} {origin['yaw']}"/>
       <geometry>
         <mesh filename="package://{self.robot.package_name}/meshes/{link.mesh}" scale="0.01 0.01 0.01"/>
       </geometry>
@@ -111,7 +126,9 @@ class LinksXacroGenerator:
             shape = collision.get("shape", "Mesh")
             
             xml += f"""    <collision>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <origin
+        xyz="{origin['x']} {origin['y']} {origin['z']}"
+        rpy="{origin['roll']} {origin['pitch']} {origin['yaw']}"/>
       <geometry>
 """
 
@@ -134,7 +151,9 @@ class LinksXacroGenerator:
 
         # Inertial
         xml += f"""    <inertial>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <origin
+        xyz="{origin['x']} {origin['y']} {origin['z']}"
+        rpy="{origin['roll']} {origin['pitch']} {origin['yaw']}"/>
       <mass value="{link.mass}"/>
       <inertia
           ixx="{link.inertia.get('ixx',0.0)}"
