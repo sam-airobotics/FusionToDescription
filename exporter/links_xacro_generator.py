@@ -101,7 +101,12 @@ class LinksXacroGenerator:
 """
 
         # Collision
+        print(
+            f"{link.name}:",
+            link.collision
+        )
         collision = link.collision
+        
         if collision:
             shape = collision.get("shape", "Mesh")
             
