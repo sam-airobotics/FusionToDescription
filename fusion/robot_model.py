@@ -11,11 +11,11 @@ from typing import List, Optional
 from .component_parser import get_component_data
 from .joint_parser import JointParser
 from .transform_parser import TransformParser
-from .collision_detector import (
-    get_body_dimensions,
-    auto_detect_shape,
-    build_collision
-)
+# from .collision_detector import (
+#     get_body_dimensions,
+#     auto_detect_shape,
+#     build_collision
+# )
 from .mass_extractor import get_mass_data
 from .inertia_calculator import calculate_inertia
 from .material_parser import MaterialParser
@@ -176,7 +176,17 @@ class RobotModelBuilder:
         
         if not component_data:
             component_data = get_component_data()
-            
+
+        print("\n========== COMPONENT DATA ==========")
+
+        for component in component_data:
+            print(
+                component["name"],
+                component["collision"]
+            )
+        
+        print("===================================\n")
+
         self.robot.links = [
             Link(
                 name=item["name"],
@@ -185,6 +195,16 @@ class RobotModelBuilder:
             )
             for item in component_data
         ]
+
+        print("\n========== ROBOT LINKS ==========")
+
+        for link in self.robot.links:
+            print(
+                link.name,
+                link.collision
+            )
+        
+        print("================================\n")
 
         # ----------------------------------------------
         # Joints
