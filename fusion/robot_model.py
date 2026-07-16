@@ -173,6 +173,11 @@ class RobotModelBuilder:
         from ..commands.ui import ui_context
 
         component_data = ui_context.get_all_components()
+
+        print("\n=== RobotModelBuilder ===")
+        for c in component_data:
+            print(c["name"], c["collision"])
+        print("========================")
         
         if not component_data:
             component_data = get_component_data()
