@@ -43,9 +43,7 @@ class Link:
         0.0
     )
 
-    origin: dict = field(
-        default_factory=dict
-    )
+    origin_transform: object = None
 
     collision: dict = field(
         default_factory=dict
@@ -245,7 +243,7 @@ class RobotModelBuilder:
 
             if link.name in transforms:
 
-                link.origin = transforms[link.name]
+                link.origin_transform = transforms[link.name]
 
         # ----------------------------------------------
         # Mass Properties
