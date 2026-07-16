@@ -125,6 +125,10 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
             return
         
         collision = component["collision"]
+
+        print(f"Updated cache: {component_name}")
+        print(component["collision"])
+        
         shape = collision["shape"]
 
         # Calculate new inertia
