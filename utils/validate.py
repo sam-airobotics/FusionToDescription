@@ -1,9 +1,6 @@
-"""
-validate.py
+"""Validation utilities for the FusionToDescription export pipeline."""
 
-Validation utilities for FusionToDescription.
-"""
-
+import math
 import os
 import re
 
@@ -21,22 +18,15 @@ class Validator:
         self._validate_config()
         if self.robot is not None:
             self._validate_robot()
-        return {"valid": not self.errors, "errors": self.errors, "warnings": self.warnings}
+        return {"valid": not self.errors, "errors": list(self.errors), "warnings": list(self.warnings)}
 
     def _validate_config(self):
-        if not self.config.robot_name:
-            self.errors.append("Robot name cannot be empty.")
-        elif not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", self.config.robot_name):
+        if not self.config.robot_name or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", self.config.robot_name):
             self.errors.append("Robot name must start with a letter and contain only letters, numbers, and underscores.")
-
         if not re.fullmatch(r"[a-z][a-z0-9_]*", self.config.package_name):
             self.errors.append("ROS package name must start with a lowercase letter and contain only lowercase letters, numbers, and underscores.")
-
         if not self.config.export_directory:
             self.errors.append("Export directory is not specified.")
-        elif not os.path.isdir(self.config.export_directory):
-            self.errors.append(f"Export directory does not exist: {self.config.export_directory}")
-
         if self.config.mesh_format.lower() not in ("stl", "obj"):
             self.errors.append(f"Unsupported mesh format: {self.config.mesh_format}")
 
@@ -48,7 +38,6 @@ class Validator:
         if not self.robot.links:
             self.errors.append("No links were found.")
             return
-
         names = set()
         for link in self.robot.links:
             if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", link.name):
@@ -56,16 +45,20 @@ class Validator:
             if link.name in names:
                 self.errors.append(f"Duplicate link: {link.name}")
             names.add(link.name)
-            if link.mass < 0:
-                self.warnings.append(f"Negative mass for link {link.name}")
+            if link.mass <= 0:
+                self.warnings.append(f"Non-positive mass for link {link.name}; a small fallback may be used.")
             if not link.mesh:
                 self.warnings.append(f"No mesh assigned to {link.name}")
+            for key in ("ixx", "iyy", "izz"):
+                value = float(link.inertia.get(key, 0.0))
+                if not math.isfinite(value) or value <= 0:
+                    self.errors.append(f"Link '{link.name}' has invalid {key} inertia: {value}.")
 
     def _validate_joints(self):
         names = set()
         link_names = {link.name for link in self.robot.links}
         child_joints = {}
-        children_by_parent = {name: [] for name in link_names}
+        adjacency = {name: [] for name in link_names}
 
         for joint in self.robot.joints:
             if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", joint.name):
@@ -73,7 +66,6 @@ class Validator:
             if joint.name in names:
                 self.errors.append(f"Duplicate joint: {joint.name}")
             names.add(joint.name)
-
             if joint.parent not in link_names:
                 self.errors.append(f"Joint '{joint.name}' references unknown parent '{joint.parent}'.")
             if joint.child not in link_names:
@@ -81,21 +73,22 @@ class Validator:
             if joint.parent == joint.child:
                 self.errors.append(f"Joint '{joint.name}' connects a link to itself.")
                 continue
-
-            # Every child may have one parent. Same-parent duplicate joints are
-            # separately reported as duplicate joint names above.
-            previous = child_joints.get(joint.child)
-            if previous is not None:
-                previous_joint = next((j for j in self.robot.joints if j.name == previous), None)
-                if previous_joint is None or previous_joint.parent != joint.parent:
-                    self.errors.append(
-                        f"Link '{joint.child}' has multiple parent joints: '{previous}' and '{joint.name}'."
-                    )
+            if joint.child in child_joints:
+                self.errors.append(
+                    f"Link '{joint.child}' has multiple parent joints: '{child_joints[joint.child]}' and '{joint.name}'."
+                )
             else:
                 child_joints[joint.child] = joint.name
+            if joint.parent in adjacency and joint.child in link_names:
+                adjacency[joint.parent].append(joint.child)
 
-            if joint.parent in link_names and joint.child in link_names:
-                children_by_parent[joint.parent].append(joint.child)
+            if joint.joint_type in ("revolute", "prismatic"):
+                limits = joint.limits or {}
+                if limits:
+                    if float(limits.get("lower", 0.0)) > float(limits.get("upper", 0.0)):
+                        self.errors.append(f"Joint '{joint.name}' has lower limit greater than upper limit.")
+                elif joint.joint_type == "revolute":
+                    self.warnings.append(f"Revolute joint '{joint.name}' is unbounded; no <limit> will be emitted.")
 
         roots = sorted(link_names - set(child_joints))
         if len(roots) != 1:
@@ -104,7 +97,6 @@ class Validator:
                 f"found {len(roots)} root links: {', '.join(roots) if roots else 'none'}."
             )
             return
-
         reachable = set()
         stack = [roots[0]]
         while stack:
@@ -112,13 +104,10 @@ class Validator:
             if link in reachable:
                 continue
             reachable.add(link)
-            stack.extend(children_by_parent[link])
-
+            stack.extend(adjacency.get(link, []))
         disconnected = sorted(link_names - reachable)
         if disconnected:
-            self.errors.append(
-                f"Links are disconnected from root '{roots[0]}': {', '.join(disconnected)}."
-            )
+            self.errors.append(f"Links are disconnected from root '{roots[0]}': {', '.join(disconnected)}.")
 
     def is_valid(self):
         return not self.errors
