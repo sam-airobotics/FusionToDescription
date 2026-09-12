@@ -5,6 +5,8 @@ Main backend manager for the FusionToDescription exporter.
 Coordinates Fusion parsers and ROS package generators.
 """
 
+import os
+
 from ..fusion.robot_model import RobotModelBuilder
 from ..utils.logger import Logger
 from ..utils.validate import Validator
@@ -57,6 +59,23 @@ class ExportManager:
             link.material.color.b = rgba[2]
             link.material.color.a = rgba[3]
 
+    @staticmethod
+    def _verify_files(package, config):
+        required = [
+            (package.package_xml_path(), "package.xml"),
+            (package.cmake_lists_path(), "CMakeLists.txt"),
+            (package.xacro_path(), "robot Xacro"),
+        ]
+        if config.generate_urdf:
+            required.append((package.urdf_path(), "URDF"))
+        if config.generate_rviz:
+            required.append((package.rviz_config_path(), "RViz configuration"))
+        if config.generate_launch:
+            required.append((os.path.join(package.launch_directory(), "display.launch.py"), "display launch"))
+        missing = [label for path, label in required if not os.path.isfile(path)]
+        if missing:
+            raise RuntimeError("Export completed with missing artifacts: " + ", ".join(missing))
+
     def export(self):
         """Run the complete export and propagate failures to the caller."""
         Logger.separator()
@@ -68,8 +87,8 @@ class ExportManager:
             validator.print_report()
             raise RuntimeError("\n".join(result["errors"]))
 
-        Logger.info("Creating ROS package...")
         package = PackageCreator(self.config)
+        Logger.info(f"Creating ROS package at {package.package_directory()}...")
         package.create()
 
         Logger.info("Building robot model...")
@@ -86,7 +105,7 @@ class ExportManager:
             validator.print_report()
             raise RuntimeError("\n".join(result["errors"]))
 
-        Logger.info("Generating package files...")
+        Logger.info("Generating package metadata...")
         PackageXMLGenerator(robot, package).generate()
         CMakeGenerator(robot, package).generate()
 
@@ -116,6 +135,8 @@ class ExportManager:
             Logger.info("Generating launch files...")
             LaunchGenerator(robot, package).generate()
 
+        self._verify_files(package, self.config)
+        Logger.info(f"Export artifacts verified in {package.package_directory()}")
         Logger.finish("FusionToDescription Export")
         Logger.separator()
         return robot
