@@ -1,17 +1,35 @@
-"""
-material_parser.py
-
-Extracts material/appearance information from the Fusion 360 design.
-"""
+"""Extract Fusion appearances and preserve their actual display color."""
 
 import traceback
 
 import adsk.core
 import adsk.fusion
 
-from .material import Material
+from .material import Color, Material
 
 app = adsk.core.Application.get()
+
+
+def _appearance_color(appearance):
+    if appearance is None:
+        return None
+    try:
+        for prop_name in ("opaque_albedo", "diffuse", "color"):
+            try:
+                prop = appearance.appearanceProperties.itemByName(prop_name)
+            except Exception:
+                prop = None
+            if prop is None:
+                continue
+            value = getattr(prop, "value", None)
+            if value is None:
+                continue
+            # Fusion colors are commonly adsk.core.Color with 0..255 channels.
+            if all(hasattr(value, channel) for channel in ("red", "green", "blue")):
+                return Color(value.red / 255.0, value.green / 255.0, value.blue / 255.0, 1.0)
+    except Exception:
+        pass
+    return None
 
 
 def _sanitize_name(value):
@@ -27,8 +45,6 @@ def _sanitize_name(value):
 
 
 class MaterialParser:
-    """Extract Fusion appearances without changing the established material behavior."""
-
     def __init__(self):
         self.design = app.activeProduct
         if not isinstance(self.design, adsk.fusion.Design):
@@ -39,31 +55,30 @@ class MaterialParser:
         try:
             for occurrence in self.root.allOccurrences:
                 component_name = occurrence.component.name
-                link = robot.get_link(component_name)
-                if link is None:
-                    link = robot.get_link(
-                        "base_link" if component_name == "base_link" else _sanitize_name(occurrence.fullPathName)
-                    )
-                if link is None:
-                    continue
-                link.material = self._extract_material(occurrence)
+                link_name = "base_link" if component_name == "base_link" else _sanitize_name(occurrence.fullPathName)
+                link = robot.get_link(link_name) or robot.get_link(component_name)
+                if link is not None:
+                    link.material = self._extract_material(occurrence)
         except Exception:
             print(traceback.format_exc())
 
     def _extract_material(self, occurrence):
         component = occurrence.component
         for body in component.bRepBodies:
-            if body.appearance:
-                return Material(name=body.appearance.name)
+            appearance = body.appearance
+            if appearance:
+                color = _appearance_color(appearance)
+                return Material(name=appearance.name, color=color or Material().color)
         if component.appearance:
-            return Material(name=component.appearance.name)
+            color = _appearance_color(component.appearance)
+            return Material(name=component.appearance.name, color=color or Material().color)
         return Material()
 
     def parse(self):
         materials = {}
-        try:
-            for occurrence in self.root.allOccurrences:
+        for occurrence in self.root.allOccurrences:
+            try:
                 materials[occurrence.component.name] = self._extract_material(occurrence)
-        except Exception:
-            print(traceback.format_exc())
+            except Exception:
+                print(traceback.format_exc())
         return materials
