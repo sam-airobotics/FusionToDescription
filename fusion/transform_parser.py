@@ -51,7 +51,7 @@ class TransformParser:
         matrix = occurrence.transform2
         translation = matrix.translation
         return {
-            # Fusion 360 design-space lengths are centimeters; URDF uses meters.
+            # Fusion design-space lengths are cm; normalize to ROS meters.
             "x": translation.x * 0.01,
             "y": translation.y * 0.01,
             "z": translation.z * 0.01,
