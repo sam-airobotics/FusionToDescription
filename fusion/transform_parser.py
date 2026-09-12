@@ -51,14 +51,11 @@ class TransformParser:
         matrix = occurrence.transform2
         translation = matrix.translation
         return {
-            "translation": {
-                "x": translation.x,
-                "y": translation.y,
-                "z": translation.z,
-            },
-            "rotation": {
-                "r11": matrix.getCell(0, 0), "r12": matrix.getCell(0, 1), "r13": matrix.getCell(0, 2),
-                "r21": matrix.getCell(1, 0), "r22": matrix.getCell(1, 1), "r23": matrix.getCell(1, 2),
-                "r31": matrix.getCell(2, 0), "r32": matrix.getCell(2, 1), "r33": matrix.getCell(2, 2),
-            },
+            # Fusion 360 design-space lengths are centimeters; URDF uses meters.
+            "x": translation.x * 0.01,
+            "y": translation.y * 0.01,
+            "z": translation.z * 0.01,
+            "roll": 0.0,
+            "pitch": 0.0,
+            "yaw": 0.0,
         }
