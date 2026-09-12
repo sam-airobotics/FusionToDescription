@@ -33,8 +33,6 @@ class ExportManager:
         self.config = config
 
     def _apply_material_colors(self, robot):
-        """Apply user-selected visualization colors while preserving material names."""
-        Logger.info("Applying user material colors...")
         color_map = {
             "Default": (0.7, 0.7, 0.7, 1.0),
             "White": (1.0, 1.0, 1.0, 1.0),
@@ -52,12 +50,9 @@ class ExportManager:
             dropdown = ui_context.get_material_dropdown(link.name)
             if dropdown is None or dropdown.selectedItem is None or link.material is None:
                 continue
-            selected_color = dropdown.selectedItem.name
-            rgba = color_map.get(selected_color, color_map["Default"])
-            link.material.color.r = rgba[0]
-            link.material.color.g = rgba[1]
-            link.material.color.b = rgba[2]
-            link.material.color.a = rgba[3]
+            rgba = color_map.get(dropdown.selectedItem.name, color_map["Default"])
+            link.material.color.r, link.material.color.g = rgba[0], rgba[1]
+            link.material.color.b, link.material.color.a = rgba[2], rgba[3]
 
     @staticmethod
     def _verify_files(package, config):
@@ -81,62 +76,43 @@ class ExportManager:
         Logger.separator()
         Logger.start("FusionToDescription Export")
 
-        validator = Validator(self.config)
-        result = validator.validate()
+        result = Validator(self.config).validate()
         if not result["valid"]:
-            validator.print_report()
             raise RuntimeError("\n".join(result["errors"]))
 
         package = PackageCreator(self.config)
-        Logger.info(f"Creating ROS package at {package.package_directory()}...")
         package.create()
 
-        Logger.info("Building robot model...")
         robot = RobotModelBuilder(self.config).build()
         if robot is None:
             raise RuntimeError("Failed to build RobotModel.")
 
         self._apply_material_colors(robot)
 
-        Logger.info("Validating robot model...")
-        validator = Validator(self.config, robot)
-        result = validator.validate()
+        result = Validator(self.config, robot).validate()
         if not result["valid"]:
-            validator.print_report()
+            Validator(self.config, robot).print_report()
             raise RuntimeError("\n".join(result["errors"]))
 
-        Logger.info("Generating package metadata...")
         PackageXMLGenerator(robot, package).generate()
         CMakeGenerator(robot, package).generate()
-
-        Logger.info("Generating Xacro files...")
         MaterialsXacroGenerator(robot, package, self.config).generate()
         if self.config.generate_gazebo:
             GazeboPluginXacroGenerator(robot, package, self.config).generate()
         RobotXacroGenerator(robot, package, self.config).generate()
 
         if self.config.generate_urdf:
-            Logger.info("Generating URDF...")
             URDFGenerator(robot, package, self.config).generate()
-
         if self.config.generate_ros2_control:
-            Logger.info("Generating ros2_control...")
             ROS2ControlGenerator(robot, package, self.config).generate()
-
         if self.config.generate_gazebo:
-            Logger.info("Generating Gazebo resources...")
             GazeboGenerator(robot, package, self.config).generate()
-
         if self.config.generate_rviz:
-            Logger.info("Generating RViz configuration...")
             RVizGenerator(robot, package, self.config).generate()
-
         if self.config.generate_launch:
-            Logger.info("Generating launch files...")
             LaunchGenerator(robot, package).generate()
 
         self._verify_files(package, self.config)
-        Logger.info(f"Export artifacts verified in {package.package_directory()}")
         Logger.finish("FusionToDescription Export")
         Logger.separator()
         return robot
