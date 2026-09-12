@@ -23,7 +23,7 @@ def _sanitize_name(value):
 
 
 class JointParser:
-    """Parse Fusion regular and as-built joints for the ROS description model."""
+    """Parse Fusion joints into occurrence-consistent ROS joint records."""
 
     TYPE_NAMES = {0: "fixed", 1: "revolute", 2: "prismatic"}
     SUPPORTED_TYPES = {0, 1, 2}
@@ -35,7 +35,6 @@ class JointParser:
         self.root = self.design.rootComponent
 
     def parse(self) -> list[dict[str, Any]]:
-        """Parse every regular and as-built joint, preserving valid failures as errors."""
         parsed = []
         joints = list(self.root.allJoints) + list(self.root.allAsBuiltJoints)
         for joint in joints:
@@ -52,16 +51,13 @@ class JointParser:
         if first is None or second is None:
             raise ValueError(
                 f"Joint '{joint.name}' is not between two component occurrences. "
-                "Move grounded/root bodies into a component such as 'base_link' "
-                "and create the joint between component occurrences."
+                "Create the joint between component occurrences; grounded/root geometry "
+                "should be represented by a base_link component."
             )
 
         fusion_type = self._joint_type_code(joint)
         if fusion_type not in self.SUPPORTED_TYPES:
-            raise ValueError(
-                f"Joint '{joint.name}' uses unsupported Fusion type "
-                f"'{fusion_type}'. Only fixed, revolute, and prismatic joints can be exported."
-            )
+            raise ValueError(f"Joint '{joint.name}' uses unsupported Fusion type '{fusion_type}'.")
 
         return {
             "name": _sanitize_name(joint.name),
@@ -140,10 +136,7 @@ class JointParser:
         if geometry is None:
             if fusion_type == 0:
                 return cls._relative_pose(parent_occurrence.transform2, child_occurrence.transform2)
-            raise ValueError(
-                f"Joint '{joint.name}' has no usable origin geometry. Recreate the moving joint "
-                "or define a valid joint origin before export."
-            )
+            raise ValueError(f"Joint '{joint.name}' has no usable origin geometry.")
         point = geometry.origin
         return cls._compute_joint_origin(
             cls._matrix_dict(parent_occurrence.transform2),
@@ -160,11 +153,7 @@ class JointParser:
         magnitude = math.sqrt(vector.x ** 2 + vector.y ** 2 + vector.z ** 2)
         if magnitude <= 1e-12:
             raise ValueError(f"Joint '{joint.name}' has a zero-length motion axis.")
-        return {
-            "x": round(vector.x / magnitude, 6),
-            "y": round(vector.y / magnitude, 6),
-            "z": round(vector.z / magnitude, 6),
-        }
+        return {"x": round(vector.x / magnitude, 6), "y": round(vector.y / magnitude, 6), "z": round(vector.z / magnitude, 6)}
 
     @staticmethod
     def _joint_limits(joint, fusion_type):
@@ -175,20 +164,20 @@ class JointParser:
         if limits is None:
             return {}
         try:
-            if not (limits.isMinimumValueEnabled and limits.isMaximumValueEnabled):
+            # Disabled minimum/maximum limits mean the joint is unbounded.
+            if not limits.isMinimumValueEnabled or not limits.isMaximumValueEnabled:
                 return {}
-            lower = limits.minimumValue
-            upper = limits.maximumValue
+            lower = float(limits.minimumValue)
+            upper = float(limits.maximumValue)
+            if not (math.isfinite(lower) and math.isfinite(upper)) or lower > upper:
+                return {}
             if fusion_type == 2:
                 lower *= 0.01
                 upper *= 0.01
-            return {
-                "lower": round(lower, 6),
-                "upper": round(upper, 6),
-                "effort": 1_000_000.0,
-                "velocity": 1_000_000.0,
-            }
-        except (AttributeError, RuntimeError):
+            # Never turn an unconfigured limit into 0..0; URDF can represent an
+            # unbounded revolute/prismatic joint by omitting <limit> entirely.
+            return {"lower": round(lower, 9), "upper": round(upper, 9), "effort": 1000.0, "velocity": 100.0}
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             return {}
 
     @staticmethod
@@ -205,18 +194,11 @@ class JointParser:
 
     @staticmethod
     def _transpose(r):
-        return {
-            "r11": r["r11"], "r12": r["r21"], "r13": r["r31"],
-            "r21": r["r12"], "r22": r["r22"], "r23": r["r32"],
-            "r31": r["r13"], "r32": r["r23"], "r33": r["r33"],
-        }
+        return {"r11": r["r11"], "r12": r["r21"], "r13": r["r31"], "r21": r["r12"], "r22": r["r22"], "r23": r["r32"], "r31": r["r13"], "r32": r["r23"], "r33": r["r33"]}
 
     @staticmethod
     def _multiply_rotation(a, b):
-        return {
-            f"r{i}{j}": sum(a[f"r{i}{k}"] * b[f"r{k}{j}"] for k in (1, 2, 3))
-            for i in (1, 2, 3) for j in (1, 2, 3)
-        }
+        return {f"r{i}{j}": sum(a[f"r{i}{k}"] * b[f"r{k}{j}"] for k in (1, 2, 3)) for i in (1, 2, 3) for j in (1, 2, 3)}
 
     @staticmethod
     def _rotate(r, v):
@@ -228,10 +210,7 @@ class JointParser:
 
     @classmethod
     def _compute_joint_origin(cls, parent, child, joint_position):
-        delta = {
-            axis: (joint_position[axis] - parent["translation"][axis]) * 0.01
-            for axis in ("x", "y", "z")
-        }
+        delta = {axis: (joint_position[axis] - parent["translation"][axis]) * 0.01 for axis in ("x", "y", "z")}
         parent_rt = cls._transpose(parent["rotation"])
         translation = cls._rotate(parent_rt, delta)
         rotation = cls._multiply_rotation(parent_rt, child["rotation"])
@@ -241,14 +220,9 @@ class JointParser:
     def _relative_pose(cls, parent_matrix, child_matrix):
         parent = cls._matrix_dict(parent_matrix)
         child = cls._matrix_dict(child_matrix)
-        delta = {
-            axis: (child["translation"][axis] - parent["translation"][axis]) * 0.01
-            for axis in ("x", "y", "z")
-        }
+        delta = {axis: (child["translation"][axis] - parent["translation"][axis]) * 0.01 for axis in ("x", "y", "z")}
         parent_rt = cls._transpose(parent["rotation"])
-        translation = cls._rotate(parent_rt, delta)
-        rotation = cls._multiply_rotation(parent_rt, child["rotation"])
-        return cls._pose(translation, rotation)
+        return cls._pose(cls._rotate(parent_rt, delta), cls._multiply_rotation(parent_rt, child["rotation"]))
 
     @staticmethod
     def _pose(translation, rotation):
@@ -263,10 +237,6 @@ class JointParser:
             pitch = math.atan2(-r31, sy)
             yaw = 0.0
         return {
-            "x": round(translation["x"], 9),
-            "y": round(translation["y"], 9),
-            "z": round(translation["z"], 9),
-            "roll": round(roll, 9),
-            "pitch": round(pitch, 9),
-            "yaw": round(yaw, 9),
+            "x": round(translation["x"], 9), "y": round(translation["y"], 9), "z": round(translation["z"], 9),
+            "roll": round(roll, 9), "pitch": round(pitch, 9), "yaw": round(yaw, 9),
         }
