@@ -82,11 +82,15 @@ class Validator:
                 self.errors.append(f"Joint '{joint.name}' connects a link to itself.")
                 continue
 
+            # Every child may have one parent. Same-parent duplicate joints are
+            # separately reported as duplicate joint names above.
             previous = child_joints.get(joint.child)
-            if previous is not None and previous != joint.parent:
-                self.errors.append(
-                    f"Link '{joint.child}' has multiple parent joints: '{previous}' and '{joint.name}'."
-                )
+            if previous is not None:
+                previous_joint = next((j for j in self.robot.joints if j.name == previous), None)
+                if previous_joint is None or previous_joint.parent != joint.parent:
+                    self.errors.append(
+                        f"Link '{joint.child}' has multiple parent joints: '{previous}' and '{joint.name}'."
+                    )
             else:
                 child_joints[joint.child] = joint.name
 
