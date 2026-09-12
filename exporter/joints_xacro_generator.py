@@ -1,8 +1,4 @@
-"""
-joints_xacro_generator.py
-
-Generates the optional standalone joints.xacro file.
-"""
+"""Generate the standalone joints.xacro fragment."""
 
 from .file_writer import FileWriter
 from xml.sax.saxutils import quoteattr
@@ -36,14 +32,16 @@ class JointsXacroGenerator:
             f'  <joint name={quoteattr(joint.name)} type={quoteattr(joint.joint_type)}>\n'
             f'    <parent link={quoteattr(joint.parent)}/>\n'
             f'    <child link={quoteattr(joint.child)}/>\n'
-            f'    <origin xyz="{origin.get("x", 0.0)} {origin.get("y", 0.0)} {origin.get("z", 0.0)}" '
-            f'rpy="{origin.get("roll", 0.0)} {origin.get("pitch", 0.0)} {origin.get("yaw", 0.0)}"/>\n'
+            f'    <origin xyz="{origin.get("x", 0.0):.9g} {origin.get("y", 0.0):.9g} {origin.get("z", 0.0):.9g}" '
+            f'rpy="{origin.get("roll", 0.0):.9g} {origin.get("pitch", 0.0):.9g} {origin.get("yaw", 0.0):.9g}"/>\n'
         )
         if joint.joint_type != "fixed":
-            xml += f'    <axis xyz="{axis.get("x", 0.0)} {axis.get("y", 0.0)} {axis.get("z", 1.0)}"/>\n'
-            limits = joint.limits or {}
-            xml += (
-                f'    <limit lower="{limits.get("lower", 0.0)}" upper="{limits.get("upper", 0.0)}" '
-                f'effort="{limits.get("effort", 1000000.0)}" velocity="{limits.get("velocity", 1000000.0)}"/>\n'
-            )
+            xml += f'    <axis xyz="{axis.get("x", 0.0):.9g} {axis.get("y", 0.0):.9g} {axis.get("z", 1.0):.9g}"/>\n'
+            if joint.joint_type in ("revolute", "prismatic") and joint.limits:
+                limits = joint.limits
+                xml += (
+                    f'    <limit lower="{float(limits["lower"]):.9g}" upper="{float(limits["upper"]):.9g}" '
+                    f'effort="{max(float(limits.get("effort", 1.0)), 1e-9):.9g}" '
+                    f'velocity="{max(float(limits.get("velocity", 1.0)), 1e-9):.9g}"/>\n'
+                )
         return xml + "  </joint>\n\n"
