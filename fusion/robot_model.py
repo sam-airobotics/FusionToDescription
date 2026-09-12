@@ -78,6 +78,18 @@ class RobotModelBuilder:
         )
         self.export_directory = config.mesh_directory()
 
+    @staticmethod
+    def _sanitize_name(value):
+        result = str(value or "")
+        for char in ("/", "\\", " ", ":", "-", "."):
+            result = result.replace(char, "_")
+        while "__" in result:
+            result = result.replace("__", "_")
+        result = result.strip("_") or "unnamed"
+        if not result[0].isalpha():
+            result = f"link_{result}"
+        return result
+
     def build(self):
         component_data = get_component_data()
         self.robot.links = [
@@ -109,13 +121,14 @@ class RobotModelBuilder:
 
         transforms = TransformParser().parse()
         for link in self.robot.links:
-            # The transform parser is still component-keyed. Keep this lookup
-            # for backwards compatibility and use occurrence-path data when it
-            # becomes available in the parser.
             if link.name in transforms:
                 link.origin = transforms[link.name]
             elif link.component_name in transforms:
                 link.origin = transforms[link.component_name]
+
+        # Material parsing intentionally remains in the existing pipeline.
+        # It now supports occurrence-aware lookup without changing the extracted appearance.
+        MaterialParser().update(self.robot)
 
         mass_data = get_mass_data()
         mass_by_name = {item["name"]: item["mass"] for item in mass_data}
@@ -128,8 +141,6 @@ class RobotModelBuilder:
                 link.inertia = calculate_inertia(shape, link.mass, link.collision)
             except Exception:
                 link.inertia = {"ixx": 0.0, "iyy": 0.0, "izz": 0.0}
-
-        MaterialParser().update(self.robot)
 
         MeshExporter(self.export_directory).export_all()
         return self.robot
