@@ -1,9 +1,4 @@
-"""
-robot_model.py
-
-Creates a complete RobotModel by collecting information from
-all Fusion parsing modules.
-"""
+"""Build the normalized robot model from Fusion 360 data."""
 
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -55,19 +50,15 @@ class RobotModel:
     metadata: dict = field(default_factory=dict)
 
     def get_link(self, name: str) -> Optional[Link]:
-        for link in self.links:
-            if link.name == name:
-                return link
-        return None
+        return next((link for link in self.links if link.name == name), None)
 
     def get_joint(self, name: str) -> Optional[Joint]:
-        for joint in self.joints:
-            if joint.name == name:
-                return joint
-        return None
+        return next((joint for joint in self.joints if joint.name == name), None)
 
 
 class RobotModelBuilder:
+    """Build a RobotModel whose geometry/poses are SI-normalized."""
+
     def __init__(self, config):
         self.config = config
         self.robot = RobotModel(
@@ -78,20 +69,11 @@ class RobotModelBuilder:
         )
         self.export_directory = config.mesh_directory()
 
-    @staticmethod
-    def _sanitize_name(value):
-        result = str(value or "")
-        for char in ("/", "\\", " ", ":", "-", "."):
-            result = result.replace(char, "_")
-        while "__" in result:
-            result = result.replace("__", "_")
-        result = result.strip("_") or "unnamed"
-        if not result[0].isalpha():
-            result = f"link_{result}"
-        return result
-
     def build(self):
         component_data = get_component_data()
+        if not component_data:
+            raise RuntimeError("No exportable Fusion components were found.")
+
         self.robot.links = [
             Link(
                 name=item["name"],
@@ -103,7 +85,18 @@ class RobotModelBuilder:
             for item in component_data
         ]
 
+        link_names = {link.name for link in self.robot.links}
         joint_dicts = JointParser().parse()
+        unknown = [
+            j for j in joint_dicts
+            if j.get("parent") not in link_names or j.get("child") not in link_names
+        ]
+        if unknown:
+            details = ", ".join(
+                f'{j.get("name")}: {j.get("parent")} -> {j.get("child")}' for j in unknown
+            )
+            raise RuntimeError(f"Fusion joints reference links that are not exported: {details}")
+
         self.robot.joints = [
             Joint(
                 name=j["name"],
@@ -116,31 +109,26 @@ class RobotModelBuilder:
             )
             for j in joint_dicts
         ]
-
         orient_joints(self.robot.joints)
 
         transforms = TransformParser().parse()
         for link in self.robot.links:
-            if link.name in transforms:
-                link.origin = transforms[link.name]
-            elif link.component_name in transforms:
-                link.origin = transforms[link.component_name]
+            link.origin = transforms.get(link.name, transforms.get(link.component_name, {}))
 
-        # Material parsing intentionally remains in the existing pipeline.
-        # It now supports occurrence-aware lookup without changing the extracted appearance.
         MaterialParser().update(self.robot)
 
         mass_data = get_mass_data()
         mass_by_name = {item["name"]: item["mass"] for item in mass_data}
         for link in self.robot.links:
-            link.mass = mass_by_name.get(link.component_name, mass_by_name.get(link.name, 0.0))
-
-        for link in self.robot.links:
+            link.mass = max(float(mass_by_name.get(link.component_name, mass_by_name.get(link.name, 0.0))), 1e-6)
             shape = link.collision.get("shape", "Box")
-            try:
-                link.inertia = calculate_inertia(shape, link.mass, link.collision)
-            except Exception:
-                link.inertia = {"ixx": 0.0, "iyy": 0.0, "izz": 0.0}
+            link.inertia = calculate_inertia(shape, link.mass, link.collision)
 
-        MeshExporter(self.export_directory).export_all()
+        exported_meshes = MeshExporter(self.export_directory).export_all()
+        expected = {link.mesh for link in self.robot.links if link.mesh}
+        actual = {path.rsplit("/", 1)[-1].rsplit("\\", 1)[-1] for path in exported_meshes}
+        missing = sorted(expected - actual)
+        if missing:
+            raise RuntimeError("Mesh export incomplete; missing: " + ", ".join(missing))
+
         return self.robot
