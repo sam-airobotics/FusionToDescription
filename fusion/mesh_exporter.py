@@ -1,9 +1,10 @@
+"""Export Fusion occurrences as ROS mesh resources."""
+
 import os
 import traceback
 
 import adsk.core
 import adsk.fusion
-
 
 app = adsk.core.Application.get()
 
@@ -21,7 +22,7 @@ def _sanitize_name(value):
 
 
 class MeshExporter:
-    """Export meshes using the same occurrence-based names as RobotModel links."""
+    """Export meshes with the exact occurrence-derived names used by RobotModel."""
 
     def __init__(self, export_directory):
         self.export_directory = export_directory
@@ -34,21 +35,30 @@ class MeshExporter:
 
     def export_all(self):
         exported = []
-        for occ in self.root.allOccurrences:
+        failures = []
+        for occurrence in self.root.allOccurrences:
             try:
-                component = occ.component
-                if component.bRepBodies.count == 0:
+                if not self._is_exportable(occurrence):
                     continue
-                if not occ.isLightBulbOn or occ.childOccurrences.count > 0:
-                    continue
-                if occ.component.joints.count > 0:
-                    continue
-                path = self.export_component(occ)
-                exported.append(path)
+                exported.append(self.export_component(occurrence))
             except Exception as exc:
-                print(f"Error exporting mesh for {getattr(occ.component, 'name', '<unknown>')}: {exc}")
+                name = getattr(getattr(occurrence, "component", None), "name", "<unknown>")
+                failures.append(f"{name}: {exc}")
+                print(f"Error exporting mesh for {name}: {exc}")
                 print(traceback.format_exc())
+        if failures:
+            raise RuntimeError("Mesh export failed:\n" + "\n".join(failures))
         return exported
+
+    @staticmethod
+    def _is_exportable(occurrence):
+        component = occurrence.component
+        return (
+            component.bRepBodies.count > 0
+            and occurrence.isLightBulbOn
+            and occurrence.childOccurrences.count == 0
+            and component.joints.count == 0
+        )
 
     def export_component(self, occurrence):
         component = occurrence.component
@@ -61,7 +71,6 @@ class MeshExporter:
         options.isBinaryFormat = True
         options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh
         self.export_manager.execute(options)
-
-        if not os.path.isfile(filepath):
-            raise RuntimeError(f"Fusion did not create the expected mesh file: {filepath}")
+        if not os.path.isfile(filepath) or os.path.getsize(filepath) == 0:
+            raise RuntimeError(f"Fusion did not create a valid mesh file: {filepath}")
         return filepath
