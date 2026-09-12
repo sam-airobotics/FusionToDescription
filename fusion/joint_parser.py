@@ -10,8 +10,20 @@ import adsk.fusion
 app = adsk.core.Application.get()
 
 
+def _sanitize_name(value):
+    result = str(value or "")
+    for char in ("/", "\\", " ", ":", "-", "."):
+        result = result.replace(char, "_")
+    while "__" in result:
+        result = result.replace("__", "_")
+    result = result.strip("_") or "unnamed"
+    if not result[0].isalpha():
+        result = f"link_{result}"
+    return result
+
+
 class JointParser:
-    """Parse Fusion regular/as-built joints into RobotModel dictionaries."""
+    """Parse Fusion regular and as-built joints for the ROS description model."""
 
     TYPE_NAMES = {0: "fixed", 1: "revolute", 2: "prismatic"}
     SUPPORTED_TYPES = {0, 1, 2}
@@ -23,7 +35,7 @@ class JointParser:
         self.root = self.design.rootComponent
 
     def parse(self) -> list[dict[str, Any]]:
-        """Parse both regular and as-built Fusion joints."""
+        """Parse every regular and as-built joint, preserving valid failures as errors."""
         parsed = []
         joints = list(self.root.allJoints) + list(self.root.allAsBuiltJoints)
         for joint in joints:
@@ -52,7 +64,7 @@ class JointParser:
             )
 
         return {
-            "name": self._sanitize_name(joint.name),
+            "name": _sanitize_name(joint.name),
             "fusion_name": joint.name,
             "type": self.TYPE_NAMES[fusion_type],
             "parent": self._occurrence_name(second),
@@ -77,26 +89,15 @@ class JointParser:
             getattr(occurrence, "component", None), "name", ""
         )
 
-    @classmethod
-    def _occurrence_name(cls, occurrence):
+    @staticmethod
+    def _occurrence_name(occurrence):
         component_name = getattr(getattr(occurrence, "component", None), "name", "")
         if component_name == "base_link":
             return "base_link"
-        return cls._sanitize_name(cls._occurrence_path(occurrence) or component_name)
+        return _sanitize_name(JointParser._occurrence_path(occurrence) or component_name)
 
     @staticmethod
-    def _sanitize_name(value):
-        result = str(value or "")
-        for char in ("/", "\\", " ", ":", "-", "."):
-            result = result.replace(char, "_")
-        while "__" in result:
-            result = result.replace("__", "_")
-        result = result.strip("_") or "unnamed"
-        if not result[0].isalpha():
-            result = f"link_{result}"
-        return result
-
-    def _joint_type_code(self, joint):
+    def _joint_type_code(joint):
         motion = joint.jointMotion
         try:
             return int(motion.jointType)
@@ -108,7 +109,7 @@ class JointParser:
             ):
                 if isinstance(motion, motion_class):
                     return code
-            raise ValueError(f"Unable to determine joint type for '{joint.name}'.")
+        raise ValueError(f"Unable to determine joint type for '{joint.name}'.")
 
     @staticmethod
     def _origin_geometry(joint):
@@ -144,10 +145,10 @@ class JointParser:
                 "or define a valid joint origin before export."
             )
         point = geometry.origin
-        parent = cls._matrix_dict(parent_occurrence.transform2)
-        child = cls._matrix_dict(child_occurrence.transform2)
         return cls._compute_joint_origin(
-            parent, child, {"x": point.x, "y": point.y, "z": point.z}
+            cls._matrix_dict(parent_occurrence.transform2),
+            cls._matrix_dict(child_occurrence.transform2),
+            {"x": point.x, "y": point.y, "z": point.z},
         )
 
     @staticmethod
@@ -262,6 +263,10 @@ class JointParser:
             pitch = math.atan2(-r31, sy)
             yaw = 0.0
         return {
-            "x": round(translation["x"], 9), "y": round(translation["y"], 9), "z": round(translation["z"], 9),
-            "roll": round(roll, 9), "pitch": round(pitch, 9), "yaw": round(yaw, 9),
+            "x": round(translation["x"], 9),
+            "y": round(translation["y"], 9),
+            "z": round(translation["z"], 9),
+            "roll": round(roll, 9),
+            "pitch": round(pitch, 9),
+            "yaw": round(yaw, 9),
         }
