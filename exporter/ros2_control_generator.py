@@ -1,4 +1,4 @@
-"""Generate modern Gazebo (gz_ros2_control) control resources for ROS 2 Jazzy."""
+"""Generate Gazebo Harmonic ros2_control support resources."""
 
 from .file_writer import FileWriter
 
@@ -11,18 +11,20 @@ class ROS2ControlGenerator:
         self.writer = FileWriter(self.package.package_directory())
 
     def generate(self):
-        self.writer.write_file("config/ros2_control.yaml", self._build_controller_yaml())
         self.writer.write_file("config/controllers.yaml", self._build_controller_yaml())
-        self.writer.write_file("urdf/ros2_control.xacro", self._build_control_xacro())
+        self.writer.write_file("config/ros2_control.yaml", self._build_controller_yaml())
+        # The actual <ros2_control> block/plugin is generated in the main robot
+        # Xacro. This standalone file is intentionally a valid optional fragment
+        # for users who want to inspect the interfaces separately.
+        self.writer.write_file("urdf/ros2_control.xacro", self._build_control_fragment())
         self.writer.write_file("launch/controllers.launch.py", self._build_controllers_launch())
 
     def _controlled_joints(self):
-        return [joint for joint in self.robot.joints if joint.joint_type in ("revolute", "continuous", "prismatic")]
+        return [j for j in self.robot.joints if j.joint_type != "fixed"]
 
     def _build_controller_yaml(self):
-        joints = self._controlled_joints()
         lines = [
-            "# Generated ros2_control controller configuration",
+            "# Generated ROS 2 controller configuration",
             "controller_manager:",
             "  ros__parameters:",
             "    update_rate: 100",
@@ -35,7 +37,7 @@ class ROS2ControlGenerator:
             "  ros__parameters:",
             "    joints:",
         ]
-        for joint in joints:
+        for joint in self._controlled_joints():
             lines.append(f"      - {joint.name}")
         lines += [
             "    command_interfaces:",
@@ -54,11 +56,13 @@ class ROS2ControlGenerator:
         ]
         return "\n".join(lines)
 
-    def _build_control_xacro(self):
-        package = self.robot.package_name
+    def _build_control_fragment(self):
+        # Standalone inspection fragment; not included automatically because
+        # a xacro file containing multiple <robot> roots cannot be nested.
         lines = [
             '<?xml version="1.0"?>',
             '<robot xmlns:xacro="http://www.ros.org/wiki/xacro">',
+            '  <!-- Include this fragment manually inside a robot description. -->',
             '  <ros2_control name="GazeboSimSystem" type="system">',
             '    <hardware>',
             '      <plugin>gz_ros2_control/GazeboSimSystem</plugin>',
@@ -72,21 +76,11 @@ class ROS2ControlGenerator:
                 '      <state_interface name="velocity"/>',
                 '    </joint>',
             ]
-        lines += [
-            '  </ros2_control>',
-            '  <gazebo>',
-            '    <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">',
-            f'      <parameters>$(find {package})/config/controllers.yaml</parameters>',
-            '    </plugin>',
-            '  </gazebo>',
-            '</robot>',
-            '',
-        ]
-        return "\n".join(lines)
+        return "\n".join(lines) + "\n  </ros2_control>\n</robot>\n"
 
     def _build_controllers_launch(self):
         package = self.robot.package_name
-        return f'''"""Spawn controllers for {self.robot.robot_name}."""
+        return f'''"""Spawn ros2_control controllers for {self.robot.robot_name}."""
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
