@@ -28,8 +28,6 @@ class ExportManager:
         self.config = config
 
     def _apply_material_colors(self, robot):
-        # Preserve the user-selected named color without replacing extracted colors
-        # unless the UI explicitly selected a material for this occurrence.
         color_map = {
             "Default": (0.7, 0.7, 0.7, 1.0), "White": (1.0, 1.0, 1.0, 1.0),
             "Black": (0.0, 0.0, 0.0, 1.0), "Gray": (0.5, 0.5, 0.5, 1.0),
@@ -42,11 +40,18 @@ class ExportManager:
             dropdown = ui_context.get_material_dropdown(link.name)
             if dropdown is None or dropdown.selectedItem is None or link.material is None:
                 continue
-            name = dropdown.selectedItem.name
-            rgba = color_map.get(name)
-            if rgba:
+            rgba = color_map.get(dropdown.selectedItem.name)
+            if rgba is not None:
                 link.material.color.r, link.material.color.g = rgba[0], rgba[1]
                 link.material.color.b, link.material.color.a = rgba[2], rgba[3]
+
+    @staticmethod
+    def _parse_xml_files(paths):
+        for path in paths:
+            try:
+                ET.parse(path)
+            except ET.ParseError as exc:
+                raise RuntimeError(f"Generated XML is invalid: {path}: {exc}") from exc
 
     def _verify_files(self, package):
         required = [
@@ -80,12 +85,8 @@ class ExportManager:
         if missing:
             raise RuntimeError("Export completed with missing/empty artifacts: " + ", ".join(missing))
 
-        for path, _label in required:
-            if path.lower().endswith((".xml", ".urdf", ".xacro", ".sdf")):
-                try:
-                    ET.parse(path)
-                except ET.ParseError as exc:
-                    raise RuntimeError(f"Generated XML is invalid: {path}: {exc}") from exc
+        xml_paths = [path for path, _ in required if path.lower().endswith((".xml", ".urdf", ".xacro", ".sdf"))]
+        self._parse_xml_files(xml_paths)
 
     def export(self):
         Logger.separator()
@@ -99,8 +100,6 @@ class ExportManager:
         Logger.info(f"Creating ROS package at {package.package_directory()}...")
 
         robot = RobotModelBuilder(self.config).build()
-        if robot is None:
-            raise RuntimeError("Failed to build RobotModel.")
         self._apply_material_colors(robot)
 
         validation = Validator(self.config, robot)
