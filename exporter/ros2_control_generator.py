@@ -13,14 +13,11 @@ class ROS2ControlGenerator:
     def generate(self):
         self.writer.write_file("config/controllers.yaml", self._build_controller_yaml())
         self.writer.write_file("config/ros2_control.yaml", self._build_controller_yaml())
-        # The actual <ros2_control> block/plugin is generated in the main robot
-        # Xacro. This standalone file is intentionally a valid optional fragment
-        # for users who want to inspect the interfaces separately.
         self.writer.write_file("urdf/ros2_control.xacro", self._build_control_fragment())
         self.writer.write_file("launch/controllers.launch.py", self._build_controllers_launch())
 
     def _controlled_joints(self):
-        return [j for j in self.robot.joints if j.joint_type != "fixed"]
+        return [j for j in self.robot.joints if j.joint_type in ("revolute", "continuous", "prismatic")]
 
     def _build_controller_yaml(self):
         lines = [
@@ -57,12 +54,10 @@ class ROS2ControlGenerator:
         return "\n".join(lines)
 
     def _build_control_fragment(self):
-        # Standalone inspection fragment; not included automatically because
-        # a xacro file containing multiple <robot> roots cannot be nested.
         lines = [
             '<?xml version="1.0"?>',
             '<robot xmlns:xacro="http://www.ros.org/wiki/xacro">',
-            '  <!-- Include this fragment manually inside a robot description. -->',
+            '  <!-- Standalone reference; the main robot Xacro owns the active control block. -->',
             '  <ros2_control name="GazeboSimSystem" type="system">',
             '    <hardware>',
             '      <plugin>gz_ros2_control/GazeboSimSystem</plugin>',
@@ -76,7 +71,8 @@ class ROS2ControlGenerator:
                 '      <state_interface name="velocity"/>',
                 '    </joint>',
             ]
-        return "\n".join(lines) + "\n  </ros2_control>\n</robot>\n"
+        lines += ['  </ros2_control>', '</robot>', '']
+        return "\n".join(lines)
 
     def _build_controllers_launch(self):
         package = self.robot.package_name
@@ -93,13 +89,13 @@ def generate_launch_description():
     joint_state = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["joint_state_broadcaster", "--param-file", config],
+        arguments=["joint_state_broadcaster", "--param-file", config, "--controller-manager", "/controller_manager"],
         output="screen",
     )
     trajectory = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["joint_trajectory_controller", "--param-file", config],
+        arguments=["joint_trajectory_controller", "--param-file", config, "--controller-manager", "/controller_manager"],
         output="screen",
     )
     return LaunchDescription([joint_state, trajectory])
