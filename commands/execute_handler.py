@@ -1,26 +1,16 @@
-"""
-Execute handler for the export command.
+"""Execute handler for the FusionToDescription export command."""
 
-Handles when the user clicks the export/OK button.
-"""
-
-import adsk.core
 import traceback
 
-from .helpers.input_utils import (
-    get_string_value,
-    get_bool_value,
-    get_selected_item
-)
+import adsk.core
 
+from .helpers.input_utils import get_bool_value, get_selected_item, get_string_value
 from ..exporter.export_config import ExportConfig
 from ..exporter.export_manager import ExportManager
 from ..utils.validate import Validator
 
 
 class ExecuteHandler(adsk.core.CommandEventHandler):
-    """Handles the execute event when exporting."""
-
     def __init__(self, app_ref, ui_ref):
         super().__init__()
         self.get_app = app_ref
@@ -33,54 +23,39 @@ class ExecuteHandler(adsk.core.CommandEventHandler):
             if not ui:
                 return
 
-            command = args.firingEvent.sender
-            inputs = command.commandInputs
-
-            robot_name = get_string_value(inputs, "robot_name")
-            export_directory = get_string_value(inputs, "export_path")
-            ros_distro = get_selected_item(inputs, "ros_distro")
-            generate_launch = get_bool_value(inputs, "generate_launch")
-            generate_rviz = get_bool_value(inputs, "generate_rviz")
-            generate_gazebo = get_bool_value(inputs, "generate_gazebo")
-            generate_control = get_bool_value(inputs, "generate_control")
-
+            inputs = args.firingEvent.sender.commandInputs
             export_config = ExportConfig(
-                robot_name=robot_name,
-                export_directory=export_directory,
-                ros_distro=ros_distro or "jazzy",
+                robot_name=get_string_value(inputs, "robot_name"),
+                export_directory=get_string_value(inputs, "export_path"),
+                ros_distro=get_selected_item(inputs, "ros_distro") or "jazzy",
                 generate_urdf=True,
                 generate_xacro=True,
-                generate_launch=generate_launch,
-                generate_rviz=generate_rviz,
-                generate_gazebo=generate_gazebo,
-                generate_ros2_control=generate_control
+                generate_launch=get_bool_value(inputs, "generate_launch"),
+                generate_rviz=get_bool_value(inputs, "generate_rviz"),
+                generate_gazebo=get_bool_value(inputs, "generate_gazebo"),
+                generate_ros2_control=get_bool_value(inputs, "generate_control"),
             )
-
             result = Validator(export_config).validate()
             if not result["valid"]:
-                ui.messageBox("\n".join(result["errors"]))
+                ui.messageBox("Export configuration error:\n\n" + "\n".join(result["errors"]))
                 return
 
-            manager = ExportManager(export_config)
-            robot = manager.export()
-            if robot is None:
-                ui.messageBox(
-                    "Export failed. No files were generated. Check the FusionToDescription "
-                    "Text Commands/log output for the exact error."
-                )
-                return
-
-            package_dir = export_config.export_directory + "/" + export_config.package_name
+            robot = ExportManager(export_config).export()
+            package_dir = export_config.package_directory() if hasattr(export_config, "package_directory") else (
+                export_config.export_directory + "/" + export_config.package_name
+            )
             ui.messageBox(
                 "Export completed successfully.\n\n"
                 f"Package: {export_config.package_name}\n"
-                f"Location: {package_dir}"
+                f"Location: {package_dir}\n\n"
+                f"Links: {len(robot.links)}\n"
+                f"Joints: {len(robot.joints)}"
             )
-
         except Exception as error:
             if ui is None:
-                ui = self.get_ui()
+                try:
+                    ui = self.get_ui()
+                except Exception:
+                    ui = None
             if ui:
-                ui.messageBox(
-                    f"Export Error: {str(error)}\n\n{traceback.format_exc()}"
-                )
+                ui.messageBox(f"Export Error:\n\n{error}\n\n{traceback.format_exc()}")
