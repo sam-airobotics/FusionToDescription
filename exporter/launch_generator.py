@@ -20,10 +20,8 @@ class LaunchGenerator:
 
     def _display_launch(self):
         package = self.robot.package_name
-        robot_xacro = f"{self.robot.robot_name}.xacro"
         return f'''from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import Command, FindExecutable, PathJoinSubstitution, LaunchConfiguration
+from launch.substitutions import Command, FindExecutable, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -31,46 +29,35 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     package_name = "{package}"
-    use_gui = LaunchConfiguration("use_gui", default="false")
+    share = FindPackageShare(package_name)
+    description_file = PathJoinSubstitution([share, "urdf", "{self.robot.robot_name}.xacro"])
+    rviz_file = PathJoinSubstitution([share, "rviz", "{self.robot.robot_name}.rviz"])
 
-    description_file = PathJoinSubstitution([
-        FindPackageShare(package_name), "urdf", "{robot_xacro}"
-    ])
     robot_description = ParameterValue(
         Command([FindExecutable(name="xacro"), " ", description_file]),
         value_type=str,
     )
 
-    robot_state_publisher = Node(
+    rsp = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
         output="screen",
         parameters=[{{"robot_description": robot_description}}],
     )
-
-    joint_state_publisher = Node(
+    jsp = Node(
         package="joint_state_publisher",
         executable="joint_state_publisher",
         output="screen",
-        condition=None,
     )
-
     rviz = Node(
         package="rviz2",
         executable="rviz2",
         name="rviz2",
         output="screen",
-        arguments=["-d", PathJoinSubstitution([
-            FindPackageShare(package_name), "rviz", "{self.robot.robot_name}.rviz"
-        ])],
+        arguments=["-d", rviz_file],
     )
 
-    return LaunchDescription([
-        DeclareLaunchArgument("use_gui", default_value="false"),
-        robot_state_publisher,
-        joint_state_publisher,
-        rviz,
-    ])
+    return LaunchDescription([rsp, jsp, rviz])
 '''
 
     def _gazebo_launch(self):
@@ -89,37 +76,37 @@ import os
 def generate_launch_description():
     package_name = "{package}"
     share = FindPackageShare(package_name)
-    xacro_file = PathJoinSubstitution([share, "urdf", "{self.robot.robot_name}.xacro"])
-    robot_description = ParameterValue(
-        Command([FindExecutable(name="xacro"), " ", xacro_file]),
-        value_type=str,
-    )
+    description_file = PathJoinSubstitution([share, "urdf", "{self.robot.robot_name}.xacro"])
+    world_file = PathJoinSubstitution([share, "worlds", "empty.sdf"])
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
                 get_package_share_directory("ros_gz_sim"),
-                "launch", "gz_sim.launch.py"
+                "launch",
+                "gz_sim.launch.py",
             )
         ),
-        launch_arguments={{"gz_args": PathJoinSubstitution([share, "worlds", "empty.sdf"])}.perform(None) if False else "-r -v 4"}.items(),
+        launch_arguments={{"gz_args": [world_file]}}.items(),
     )
 
-    state_publisher = Node(
+    robot_description = ParameterValue(
+        Command([FindExecutable(name="xacro"), " ", description_file]),
+        value_type=str,
+    )
+    rsp = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
         output="screen",
         parameters=[{{"robot_description": robot_description, "use_sim_time": True}}],
     )
-
     spawn = Node(
         package="ros_gz_sim",
         executable="create",
         arguments=["-topic", "robot_description", "-name", "{self.robot.robot_name}"],
         output="screen",
     )
-
-    return LaunchDescription([gazebo, state_publisher, spawn])
+    return LaunchDescription([gazebo, rsp, spawn])
 '''
 
     def _sim_launch(self):
@@ -133,8 +120,7 @@ import os
 
 
 def generate_launch_description():
-    package_name = "{package}"
-    share = get_package_share_directory(package_name)
+    share = get_package_share_directory("{package}")
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(share, "launch", "gazebo.launch.py"))
     )
