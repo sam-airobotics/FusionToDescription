@@ -72,11 +72,12 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                 )
 
     def _browse_export_path(self, inputs):
-        """Open a folder picker and place the selected path in Export Path."""
+        """Open a folder picker and display the selected path in Export Path."""
         ui = self.get_ui()
-        browse_input = inputs.itemById("browse_export_path")
 
         try:
+            browse_input = inputs.itemById("browse_export_path")
+
             # Reset the button so it behaves like a momentary action.
             if browse_input:
                 browse_input.value = False
@@ -87,16 +88,22 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
             dialog = ui.createFolderDialog()
             dialog.title = "Select Export Folder"
 
-            if dialog.showDialog() == adsk.core.DialogResults.DialogOK:
-                export_path = inputs.itemById("export_path")
-                if export_path:
-                    export_path.value = dialog.folder
+            if dialog.showDialog() != adsk.core.DialogResults.DialogOK:
+                return
 
-        except Exception as error:
-            if ui:
-                ui.messageBox(
-                    f"Browse Error:\n\n{error}\n\n{traceback.format_exc()}"
-                )
+            selected_path = dialog.folder
+            if not selected_path:
+                return
+
+            # Export Path is inside the table row. itemById() resolves
+            # nested command inputs, so the selected folder is written
+            # directly into the visible textbox.
+            export_path_input = inputs.itemById("export_path")
+
+            if not export_path_input:
+                raise RuntimeError("Export Path input could not be found.")
+
+            export_path_input.value = selected_path
 
     def _handle_collision_mode_change(self, inputs):
         """Handle collision mode radio button change.
