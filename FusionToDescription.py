@@ -1,12 +1,12 @@
 """FusionToDescription Autodesk Fusion 360 add-in entry point.
 
-Version: 0.1.2
+Version: 0.1.3
 """
 
 import adsk.core
 import traceback
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 handlers = []
 

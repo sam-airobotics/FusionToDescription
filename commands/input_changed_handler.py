@@ -25,7 +25,7 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
 
     def __init__(self, app_ref, ui_ref):
         """Initialize with app and UI references.
-        
+
         Args:
             app_ref: Callable that returns current app
             ui_ref: Callable that returns current UI
@@ -36,7 +36,7 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
 
     def notify(self, args):
         """Handle input changed event.
-        
+
         Args:
             args: InputChangedEventArgs
         """
@@ -48,8 +48,12 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
             changed_input = args.input
             inputs = args.inputs
 
+            # Handle export path browse
+            if changed_input.id == "browse_export_path":
+                self._browse_export_path(inputs)
+
             # Handle collision mode changes
-            if changed_input.id == "collision_mode":
+            elif changed_input.id == "collision_mode":
                 self._handle_collision_mode_change(inputs)
 
             # Handle primitive mode changes
@@ -67,9 +71,55 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
                     f"Error processing input: {str(e)}\n\n{traceback.format_exc()}"
                 )
 
+    def _browse_export_path(self, inputs):
+        """Open a folder picker and display the selected path in Export Path."""
+        ui = self.get_ui()
+
+        try:
+            browse_input = inputs.itemById("browse_export_path")
+
+            # Reset the button so it behaves like a momentary action.
+            if browse_input:
+                browse_input.value = False
+
+            if not ui:
+                return
+
+            dialog = ui.createFolderDialog()
+            dialog.title = "Select Export Folder"
+
+            if dialog.showDialog() != adsk.core.DialogResults.DialogOK:
+                return
+
+            selected_path = dialog.folder
+            if not selected_path:
+                return
+
+            # Export Path is displayed inside a TableCommandInput.
+            # Retrieve the table first, then get the textbox from its cell.
+            # TableCommandInput.getInputAtPosition() is the supported way
+            # to access a command input placed in a table cell.
+            export_path_table = inputs.itemById("export_path_row")
+
+            if not export_path_table:
+                raise RuntimeError("Export Path row could not be found.")
+
+            export_path_input = export_path_table.getInputAtPosition(0, 1)
+
+            if not export_path_input:
+                raise RuntimeError("Export Path input could not be found.")
+
+            export_path_input.value = selected_path
+
+        except Exception as error:
+            if ui:
+                ui.messageBox(
+                    f"Browse Error:\n\n{error}\n\n{traceback.format_exc()}"
+                )
+
     def _handle_collision_mode_change(self, inputs):
         """Handle collision mode radio button change.
-        
+
         Args:
             inputs: Command inputs container
         """
@@ -84,7 +134,7 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
 
     def _handle_primitive_mode_change(self, inputs):
         """Handle primitive mode radio button change.
-        
+
         Args:
             inputs: Command inputs container
         """
@@ -97,7 +147,7 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
 
     def _handle_mass_change(self, inputs, mass_input_id):
         """Handle mass value change (auto-calculate inertia).
-        
+
         Args:
             inputs: Command inputs container
             mass_input_id: ID of the mass input that changed
