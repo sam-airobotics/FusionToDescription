@@ -20,13 +20,11 @@ def _screen_size():
         except Exception:
             pass
 
-    # Conservative fallback for platforms where Fusion does not expose
-    # desktop screen dimensions through the API.
     return 1920, 1080
 
 
 def show(ui):
-    """Show the FusionToDescription logo centered on the screen."""
+    """Show a small centered startup window containing the logo."""
     global _palette
 
     if not ui:
@@ -44,13 +42,16 @@ def show(ui):
             resources_dir, "splash.html"
         ).replace("\\", "/")
 
-        width = 520
-        height = 420
+        # Keep the splash intentionally small and centered.
+        width = 360
+        height = 260
+
         screen_width, screen_height = _screen_size()
         left = max(0, int((screen_width - width) / 2))
         top = max(0, int((screen_height - height) / 2))
 
-        # Create hidden first so the position can be set before display.
+        # Create hidden first so the window is positioned before it becomes
+        # visible. The actual exporter command remains separate.
         _palette = ui.palettes.add(
             PALETTE_ID,
             PALETTE_NAME,
