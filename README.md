@@ -1,3 +1,36 @@
+# 📐 FusionToDescription
+
+<p align="center">
+  <img src="resources/svg/FusionToDescription SVG.svg" width="100%" alt="FusionToDescription workflow">
+</p>
+
+**FusionToDescription** is a Fusion 360 add-in that converts Autodesk Fusion 360 robot assemblies into ROS 2 description packages.
+
+### 🔗 Workflow
+
+**Fusion 360 → FusionToDescription → ROS 2 Description Package**
+
+### ✨ Project Information
+
+- 🧩 **Fusion 360 Integration** — Export robot assembly structure directly from Autodesk Fusion 360.
+- 📦 **ROS 2 Description Generation** — Generate URDF / Xacro-based robot description packages.
+- 🔗 **Joint Pipeline** — Preserve parent/child relationships, joint origins, axes, and limits through the export pipeline.
+- 🎨 **Material Pipeline** — Preserve Fusion material information while supporting independent visualization colors.
+- 📁 **Export Path** — Choose the package destination directly through the Export Path field and **Browse** control.
+- ⚙️ **Simulation Support** — Generated packages include the resources required for downstream ROS 2, RViz, Gazebo, and optional ROS 2 Control workflows.
+
+### 📦 Generated Package Contents
+
+- URDF / Xacro
+- Meshes
+- Material definitions
+- Gazebo configuration
+- RViz configuration
+- Launch files
+- Optional ROS 2 Control configuration
+
+---
+
 # 🚀 FusionToDescription v0.1.3
 
 ## Export Path & Browse Feature
