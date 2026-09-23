@@ -1,20 +1,33 @@
 """FusionToDescription startup splash palette."""
 
 import os
+import sys
 import adsk.core
 
 PALETTE_ID = "fusiontodescription_startup_splash"
 PALETTE_NAME = "FusionToDescription"
 
-SPLASH_DURATION_MS = 5000
-
 _palette = None
-_timer = None
+
+
+def _screen_size():
+    """Return the primary screen size in pixels when available."""
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+        except Exception:
+            pass
+
+    # Conservative fallback for platforms where Fusion does not expose
+    # desktop screen dimensions through the API.
+    return 1920, 1080
 
 
 def show(ui):
-    """Show the logo centered on screen for five seconds."""
-    global _palette, _timer
+    """Show the FusionToDescription logo centered on the screen."""
+    global _palette
 
     if not ui:
         return
@@ -22,7 +35,6 @@ def show(ui):
     try:
         if _palette:
             _palette.isVisible = True
-            _start_timer()
             return
 
         resources_dir = os.path.abspath(
@@ -32,58 +44,34 @@ def show(ui):
             resources_dir, "splash.html"
         ).replace("\\", "/")
 
+        width = 520
+        height = 420
+        screen_width, screen_height = _screen_size()
+        left = max(0, int((screen_width - width) / 2))
+        top = max(0, int((screen_height - height) / 2))
+
+        # Create hidden first so the position can be set before display.
         _palette = ui.palettes.add(
             PALETTE_ID,
             PALETTE_NAME,
             splash_url,
             False,
-            True,
-            True,
-            520,
-            420,
+            False,
+            False,
+            width,
+            height,
         )
 
-        # Let Fusion finish creating the palette, then center it.
-        try:
-            _palette.centered = True
-        except Exception:
-            pass
-
-        _start_timer()
+        if _palette:
+            _palette.setPosition(left, top)
+            _palette.isVisible = True
 
     except Exception:
         _palette = None
 
 
-def _start_timer():
-    """Start a five-second timer before the splash is hidden."""
-    global _timer
-
-    try:
-        if _timer:
-            _timer.stop()
-            _timer.deleteMe()
-    except Exception:
-        pass
-
-    try:
-        _timer = adsk.core.TimerEventHandler()
-        _timer.notify.add(_timer_notify)
-
-        app = adsk.core.Application.get()
-        if app:
-            app.userInterface.events.add(_timer)
-    except Exception:
-        _timer = None
-
-
-def _timer_notify(args):
-    """Hide the splash after five seconds."""
-    hide()
-
-
 def hide():
-    """Hide the startup splash before the main UI panel appears."""
+    """Hide the startup splash."""
     global _palette
 
     try:
@@ -94,14 +82,8 @@ def hide():
 
 
 def stop():
-    """Remove the startup splash and timer."""
-    global _palette, _timer
-
-    try:
-        if _timer:
-            _timer.deleteMe()
-    except Exception:
-        pass
+    """Remove the startup splash palette."""
+    global _palette
 
     try:
         if _palette:
@@ -109,5 +91,4 @@ def stop():
     except Exception:
         pass
 
-    _timer = None
     _palette = None
