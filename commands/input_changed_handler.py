@@ -105,6 +105,12 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
 
             export_path_input.value = selected_path
 
+        except Exception as error:
+            if ui:
+                ui.messageBox(
+                    f"Browse Error:\n\n{error}\n\n{traceback.format_exc()}"
+                )
+
     def _handle_collision_mode_change(self, inputs):
         """Handle collision mode radio button change.
 
