@@ -36,25 +36,34 @@ def build_general_tab(inputs):
         ""
     )
 
-    # Export path + Browse button on the same row.
-    # A TableCommandInput is used to explicitly place both controls
-    # in the same row instead of creating a separate Browse row.
+    # Export Path + Browse button on the same row.
+    # Use a 3-column table so the Export Path label remains visible:
+    # [Export Path] [____________________] [Browse]
     export_path_table = general_inputs.addTableCommandInput(
         "export_path_row",
         "",
-        2,
-        "8:2"
+        3,
+        "20:70:10"
     )
     export_path_table.hasGrid = False
     export_path_table.minimumVisibleRows = 1
     export_path_table.maximumVisibleRows = 1
 
+    export_path_label = general_inputs.addTextBoxCommandInput(
+        "export_path_label",
+        "",
+        "Export Path",
+        1,
+        True
+    )
+    export_path_table.addCommandInput(export_path_label, 0, 0)
+
     export_path_input = general_inputs.addStringValueInput(
         "export_path",
-        "Export Path",
+        "",
         ""
     )
-    export_path_table.addCommandInput(export_path_input, 0, 0)
+    export_path_table.addCommandInput(export_path_input, 0, 1)
 
     browse_button = general_inputs.addBoolValueInput(
         "browse_export_path",
@@ -63,7 +72,7 @@ def build_general_tab(inputs):
         "",
         False
     )
-    export_path_table.addCommandInput(browse_button, 0, 1)
+    export_path_table.addCommandInput(browse_button, 0, 2)
 
     # ROS Distro selection
     distro_group = create_group(
