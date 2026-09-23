@@ -1,19 +1,17 @@
+"""FusionToDescription Autodesk Fusion 360 add-in entry point.
+
+Version: 0.1.2
+"""
+
 import adsk.core
 import traceback
 
+__version__ = "0.1.2"
+
 handlers = []
 
-# def run(context):
-#     app = adsk.core.Application.get()
-#     ui = app.userInterface
-
-#     ui.messageBox("FusionToDescription started")
-
-#     from .commands import export_command
-#     export_command.start()
 
 def run(context):
-
     try:
         from .commands import export_command
         export_command.start()
@@ -27,10 +25,7 @@ def run(context):
             )
 
 
-
-
 def stop(context):
-
     try:
         from .commands import export_command
         export_command.stop()
