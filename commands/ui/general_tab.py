@@ -37,34 +37,43 @@ def build_general_tab(inputs):
     )
 
     # Export Path + Browse button on the same row.
-    # Use a 3-column table so the Export Path label remains visible:
-    # [Export Path] [____________________] [Browse]
+    #
+    # The Export Path is a normal StringValueCommandInput, so its label
+    # is rendered in the same style as the Robot Name label.
+    #
+    # Layout:
+    # Export Path  [________________________]   [Browse]
+    #
+    # A small middle column provides visual spacing between the textbox
+    # and the Browse button.
     export_path_table = general_inputs.addTableCommandInput(
         "export_path_row",
         "",
         3,
-        "20:70:10"
+        "72:8:20"
     )
     export_path_table.hasGrid = False
     export_path_table.minimumVisibleRows = 1
     export_path_table.maximumVisibleRows = 1
 
-    export_path_label = general_inputs.addTextBoxCommandInput(
-        "export_path_label",
-        "",
+    export_path_input = general_inputs.addStringValueInput(
+        "export_path",
         "Export Path",
+        ""
+    )
+    export_path_table.addCommandInput(export_path_input, 0, 0)
+
+    # Spacer column.
+    spacer = general_inputs.addTextBoxCommandInput(
+        "export_path_spacer",
+        "",
+        "",
         1,
         True
     )
-    export_path_table.addCommandInput(export_path_label, 0, 0)
+    export_path_table.addCommandInput(spacer, 0, 1)
 
-    export_path_input = general_inputs.addStringValueInput(
-        "export_path",
-        "",
-        ""
-    )
-    export_path_table.addCommandInput(export_path_input, 0, 1)
-
+    # Browse push button.
     browse_button = general_inputs.addBoolValueInput(
         "browse_export_path",
         "Browse",
@@ -72,6 +81,7 @@ def build_general_tab(inputs):
         "",
         False
     )
+    browse_button.isFullWidth = True
     export_path_table.addCommandInput(browse_button, 0, 2)
 
     # ROS Distro selection
