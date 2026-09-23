@@ -1,107 +1,47 @@
-"""
-joints_xacro_generator.py
-
-Generates the joints.xacro file containing all robot joint definitions.
-
-FIXED: Added config parameter for future enhancements
-"""
+"""Generate the standalone joints.xacro fragment."""
 
 from .file_writer import FileWriter
+from xml.sax.saxutils import quoteattr
 
 
 class JointsXacroGenerator:
-
-    def __init__(
-        self,
-        robot,
-        package_creator,
-        config=None
-    ):
-        """
-        Initialize joints xacro generator.
-        
-        Args:
-            robot: RobotModel instance
-            package_creator: PackageCreator instance
-            config: ExportConfig instance (optional)
-        """
-
+    def __init__(self, robot, package_creator, config=None):
         self.robot = robot
         self.package = package_creator
-        self.config = config  # ✅ ADDED
-
-        self.writer = FileWriter(
-            self.package.package_directory()
-        )
-
-    # =====================================================
-    # Generate Joints Xacro
-    # =====================================================
+        self.config = config
+        self.writer = FileWriter(self.package.package_directory())
 
     def generate(self):
-        """Generate the joints.xacro file."""
-
-        xacro = self._build_xacro()
-
-        self.writer.write_file(
-            f"urdf/joints.xacro",
-            xacro
-        )
-
-    # =====================================================
-    # Build Joints Xacro
-    # =====================================================
+        return self.writer.write_file("urdf/joints.xacro", self._build_xacro())
 
     def _build_xacro(self):
-        """Build joints xacro content."""
-
-        xacro = f"""<?xml version="1.0"?>
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="{self.robot.robot_name}">
-
-  <!-- ============================= -->
-  <!-- Joint Definitions             -->
-  <!-- ============================= -->
-"""
-
+        xacro = (
+            '<?xml version="1.0"?>\n'
+            '<robot xmlns:xacro="http://www.ros.org/wiki/xacro" '
+            f'name={quoteattr(self.robot.robot_name)}>\n\n'
+        )
         for joint in self.robot.joints:
             xacro += self._generate_joint(joint)
+        return xacro + "</robot>\n"
 
-        xacro += """
-</robot>
-"""
-
-        return xacro
-
-    # =====================================================
-    # Generate Individual Joint
-    # =====================================================
-
-    def _generate_joint(self, joint):
-        """Generate Xacro for a single joint."""
-
-        origin = joint.origin
-        axis = joint.axis
-
-        xml = f"""
-  <joint name="{joint.name}" type="{joint.joint_type}">
-    <parent link="{joint.parent}"/>
-    <child link="{joint.child}"/>
-    <origin xyz="{origin.get('x',0)} {origin.get('y',0)} {origin.get('z',0)}" 
-            rpy="{origin.get('roll',0)} {origin.get('pitch',0)} {origin.get('yaw',0)}"/>
-"""
-
+    @staticmethod
+    def _generate_joint(joint):
+        origin = joint.origin or {}
+        axis = joint.axis or {}
+        xml = (
+            f'  <joint name={quoteattr(joint.name)} type={quoteattr(joint.joint_type)}>\n'
+            f'    <parent link={quoteattr(joint.parent)}/>\n'
+            f'    <child link={quoteattr(joint.child)}/>\n'
+            f'    <origin xyz="{origin.get("x", 0.0):.9g} {origin.get("y", 0.0):.9g} {origin.get("z", 0.0):.9g}" '
+            f'rpy="{origin.get("roll", 0.0):.9g} {origin.get("pitch", 0.0):.9g} {origin.get("yaw", 0.0):.9g}"/>\n'
+        )
         if joint.joint_type != "fixed":
-            xml += f"""    <axis xyz="{axis.get('x',0)} {axis.get('y',0)} {axis.get('z',1)}"/>
-"""
-
-            limits = joint.limits
-            xml += f"""    <limit lower="{limits.get('lower',0)}" 
-            upper="{limits.get('upper',0)}" 
-            effort="{limits.get('effort',0)}" 
-            velocity="{limits.get('velocity',0)}"/>
-"""
-
-        xml += """  </joint>
-"""
-
-        return xml
+            xml += f'    <axis xyz="{axis.get("x", 0.0):.9g} {axis.get("y", 0.0):.9g} {axis.get("z", 1.0):.9g}"/>\n'
+            if joint.joint_type in ("revolute", "prismatic") and joint.limits:
+                limits = joint.limits
+                xml += (
+                    f'    <limit lower="{float(limits["lower"]):.9g}" upper="{float(limits["upper"]):.9g}" '
+                    f'effort="{max(float(limits.get("effort", 1.0)), 1e-9):.9g}" '
+                    f'velocity="{max(float(limits.get("velocity", 1.0)), 1e-9):.9g}"/>\n'
+                )
+        return xml + "  </joint>\n\n"
