@@ -95,10 +95,16 @@ class InputChangedHandler(adsk.core.InputChangedEventHandler):
             if not selected_path:
                 return
 
-            # Export Path is inside the table row. itemById() resolves
-            # nested command inputs, so the selected folder is written
-            # directly into the visible textbox.
-            export_path_input = inputs.itemById("export_path")
+            # Export Path is displayed inside a TableCommandInput.
+            # Retrieve the table first, then get the textbox from its cell.
+            # TableCommandInput.getInputAtPosition() is the supported way
+            # to access a command input placed in a table cell.
+            export_path_table = inputs.itemById("export_path_row")
+
+            if not export_path_table:
+                raise RuntimeError("Export Path row could not be found.")
+
+            export_path_input = export_path_table.getInputAtPosition(0, 1)
 
             if not export_path_input:
                 raise RuntimeError("Export Path input could not be found.")
