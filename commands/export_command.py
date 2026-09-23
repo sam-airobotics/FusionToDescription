@@ -166,9 +166,9 @@ def stop():
         if startup_stop:
             startup_stop.set()
 
-        if startup_event and startup_event.isValid:
+        if app and startup_event:
             try:
-                startup_event.deleteMe()
+                app.unregisterCustomEvent(STARTUP_SPLASH_EVENT)
             except Exception:
                 pass
 
