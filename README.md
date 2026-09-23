@@ -1,28 +1,217 @@
-# 🚀 FusionToDescription v0.1.1
+# 🚀 FusionToDescription v0.1.2
 
-## Material Pipeline Update
+## Joint Pipeline Update
 
-Version **0.1.1** builds upon the initial public release by introducing a redesigned material pipeline, improved export architecture, and numerous internal improvements to the ROS 2 package generation workflow.
+Version **0.1.2** introduces the redesigned **joint and kinematic frame pipeline**, replacing the earlier joint-generation approach with a frame-aware Fusion 360 → URDF workflow.
 
-This release focuses on making exported robot descriptions more modular, maintainable, and ready for future rendering enhancements while continuing work on improving joint generation.
+This release focuses on accurate joint origins, joint axes, parent/child orientation, and link-local geometry transforms so exported robot descriptions preserve the intended Fusion 360 assembly structure.
 
 ---
 
 # ✨ What's New
 
-## 🎨 Material Pipeline Overhaul
+## 🔗 Joint Pipeline Overhaul
 
-FusionToDescription now features a completely redesigned material pipeline.
+FusionToDescription now uses a dedicated joint-frame pipeline for converting Fusion 360 assembly joints into ROS 2 / URDF joints.
 
-### ✅ Fusion Material Preservation
+The pipeline distinguishes between:
 
-The exporter now preserves the original Autodesk Fusion 360 material (appearance) assigned to every component.
+- Fusion occurrence / component frames
+- Fusion joint geometry frames
+- URDF parent frames
+- URDF joint frames
+- URDF child-link frames
 
-Instead of replacing materials with predefined colors, Fusion material names are now stored throughout the export process.
+This prevents assembly/world transforms from being incorrectly reused as link-local transforms.
 
-### 🌈 Independent Visualization Colors
+---
 
-Visualization colors are now separated from Fusion materials.
+## 📐 Accurate Joint Origins
+
+Joint origins are now calculated from the relationship between the **parent occurrence frame** and the **Fusion joint frame**.
+
+Conceptually:
+
+```text
+URDF joint origin = parent_frame⁻¹ × joint_frame
+```
+
+This means the generated URDF joint origin represents the transform:
+
+```text
+parent link → joint frame
+```
+
+rather than an assembly/world-space pose.
+
+This is especially important for robots containing nested components, rotated assemblies, or joints whose geometry does not coincide with a component origin.
+
+---
+
+## 🧭 Improved Joint Axis Generation
+
+Movable-joint axes are now expressed in the generated **joint frame**.
+
+The pipeline uses Fusion joint motion information where available and transforms the motion axis into the correct joint coordinate system.
+
+Supported motion types include:
+
+- Revolute joints
+- Prismatic joints
+- Fixed joints
+
+This improves compatibility with ROS 2 controllers, Gazebo, RViz, and downstream kinematic processing.
+
+---
+
+## 🔄 Correct Parent / Child Orientation
+
+Joint orientation is now resolved from the complete joint graph instead of assuming that Fusion's endpoint ordering is already suitable for URDF.
+
+The pipeline:
+
+1. Builds an undirected joint graph
+2. Selects the robot root
+3. Traverses the connected components
+4. Orients each joint from parent → child
+5. Corrects the motion direction when a joint is reversed
+
+For reversed revolute or prismatic joints:
+
+```text
+axis_new = -axis_old
+```
+
+Joint limits are also transformed consistently:
+
+```text
+lower_new = -upper_old
+upper_new = -lower_old
+```
+
+This keeps the generated kinematics physically consistent after parent/child reversal.
+
+---
+
+## 🧩 Correct Link-Local Geometry Frames
+
+The exporter now separates the **joint transform** from the **child link geometry transform**.
+
+The generated relationship is:
+
+```text
+parent link
+     ↓
+joint origin
+     ↓
+joint frame
+     ↓
+child link / CAD component frame
+     ↓
+visual / collision geometry
+```
+
+The child link's visual/collision origin is therefore calculated relative to the joint frame:
+
+```text
+child_origin = joint_frame⁻¹ × child_component_frame
+```
+
+This prevents the common **double-transform** problem where an assembly/world transform is applied both to the joint and to the link geometry.
+
+It also supports CAD designs where the component origin is not coincident with the joint origin.
+
+---
+
+## 🧱 Assembly-Context Transform Handling
+
+The joint pipeline now uses Fusion occurrence assembly-context transforms where appropriate.
+
+This is important for components that are positioned or rotated through an assembly occurrence rather than being located at their component-local origin.
+
+The exporter no longer treats a component's world/assembly transform as if it were automatically a URDF link-local visual transform.
+
+---
+
+## ⚙️ Improved Joint Data Model
+
+Joint records now retain the internal frame information required to complete the kinematic conversion.
+
+The pipeline tracks:
+
+- Parent frame
+- Child frame
+- Joint frame
+- World motion axis
+- Joint-local axis
+- Joint origin
+- Child-link local origin
+- Joint limits
+
+Frame-dependent values are finalized after parent/child orientation has been resolved.
+
+This keeps graph traversal and coordinate-frame calculations separate and makes the export pipeline easier to validate.
+
+---
+
+# 🧪 Validation & Regression Tests
+
+Version **0.1.2** adds regression coverage for the new joint-frame pipeline.
+
+Tests cover:
+
+### Joint frame transforms
+
+- Parent → joint transform
+- Joint → child-component transform
+- Link-local geometry offsets
+- Vector transformation into joint coordinates
+
+### Reversed joints
+
+- Parent/child reversal
+- Motion-axis inversion
+- Revolute limit inversion
+- Prismatic limit inversion
+
+These tests specifically target the transform errors that can cause exported robots to appear displaced, duplicated, or incorrectly oriented in simulation.
+
+---
+
+# ✅ Improved Export Validation
+
+The package validation layer now checks additional joint and link data.
+
+Validation includes:
+
+- Valid package configuration
+- Mesh format
+- Finite link origins
+- Finite collision origins
+- Non-zero movable-joint axes
+- Finite joint limits
+- Ordered joint limits
+- Duplicate parent detection
+- Self-joint detection
+- Root-link detection
+- Link reachability
+- Disconnected joint-tree detection
+
+Unbounded revolute joints are also reported as warnings where applicable.
+
+---
+
+# 🎨 Material Pipeline
+
+FusionToDescription continues to preserve the material-pipeline improvements introduced in **v0.1.1**.
+
+### Fusion Material Preservation
+
+The exporter preserves the original Autodesk Fusion 360 material (appearance) assigned to every component.
+
+### Independent Visualization Colors
+
+Visualization colors remain independent from Fusion materials.
 
 This enables:
 
@@ -30,100 +219,13 @@ This enables:
 - Assign visualization colors independently
 - Better compatibility with RViz
 - Better compatibility with Gazebo
-- Cleaner material management throughout the package
-
----
-
-## ⚙️ Improved Robot Model
-
-The internal RobotModel has been redesigned to support richer material information.
-
-Instead of storing materials as plain strings:
-
-```python
-material = "Steel"
-```
-
-FusionToDescription now stores:
-
-```python
-Material
-├── name
-└── Color
-      ├── r
-      ├── g
-      ├── b
-      └── a
-```
-
-This architecture prepares the exporter for future features including:
-
-- Material libraries
-- Custom shaders
-- PBR materials
-- Texture support
-- Advanced Gazebo rendering
-
----
-
-## 📦 Improved Material Generation
-
-The generated `materials.xacro` file has been completely redesigned.
-
-### Improvements
-
-- Automatic material generation
-- Duplicate material removal
-- RGBA color generation
-- Material definitions shared between links
-- Cleaner Xacro output
-- Better compatibility with ROS 2
-
----
-
-## 🖥️ Updated Properties Tab
-
-The **Properties** tab has been extended to include material visualization settings.
-
-Users can now:
-
-- View the original Fusion material
-- Choose visualization colors independently
-- Keep CAD materials unchanged while customizing simulation appearance
-
-<p align="center">
-<img src="https://github.com/user-attachments/assets/20838993-53f1-423e-8d91-57416fa8c59b" width="95%"><br>
-<img width="95%" src="https://github.com/user-attachments/assets/0c63a336-9e4d-494e-ad95-ef5198d9e5c3">
-</p>
-
----
-
-# ⚡ Export Pipeline Improvements
-
-Several internal components have been redesigned to improve maintainability and future development.
-
-### Updated Components
-
-- Material Parser
-- RobotModel
-- Export Manager
-- Materials Xacro Generator
-- Link Generation Pipeline
-- URDF Generation Pipeline
-
-### Improvements
-
-- Better separation of responsibilities
-- Cleaner data flow
-- Improved code organization
-- Simplified material handling
-- Easier future feature integration
+- Cleaner material management
 
 ---
 
 # 📦 Export Result
 
-FusionToDescription continues to automatically generate a complete ROS 2 description package containing:
+FusionToDescription generates a ROS 2 description package containing:
 
 - URDF / Xacro
 - Meshes
@@ -133,9 +235,15 @@ FusionToDescription continues to automatically generate a complete ROS 2 descrip
 - Launch files
 - ROS 2 Control configuration (optional)
 
-<p align="center">
-<img src="https://github.com/user-attachments/assets/71ecfa46-278c-4e3f-9ab4-1984b865d32c" width="95%">
-</p>
+---
+
+# ⚠️ Important Simulation Note
+
+The joint-frame pipeline is validated through Python syntax checks and mathematical regression tests.
+
+Full Fusion 360 API execution and Gazebo/RViz simulation remain runtime validation steps because the Autodesk Fusion environment is required to exercise the complete export process.
+
+Generated packages should therefore still be tested in the target ROS 2 / Gazebo environment after export.
 
 ---
 
@@ -149,49 +257,33 @@ Generated packages are exported directly to the selected destination.
 
 ---
 
-# 🚀 Release Highlights
+# 🚀 Release Highlights — v0.1.2
 
-- ✅ Redesigned Material Pipeline
-- ✅ Fusion Material Preservation
-- ✅ Independent Visualization Colors
-- ✅ Improved RobotModel Architecture
-- ✅ Automatic Material Generation
-- ✅ Cleaner `materials.xacro`
-- ✅ Improved Export Pipeline
-- ✅ Updated URDF/Xacro Generation
-- ✅ Better Package Structure
-- ✅ Improved Code Maintainability
-
----
-
-# 🚧 Known Issues
-
-FusionToDescription is still under active development.
-
-The following areas are currently being improved:
-
-- Joint origin extraction
-- Joint orientation generation
-- Joint axis calculation
-- Exported package syntax validation
-
-Some complex robot assemblies may still require minor manual adjustments before simulation.
+- ✅ Redesigned Joint Pipeline
+- ✅ Accurate Joint Frame Extraction
+- ✅ Assembly-Context Transform Handling
+- ✅ Improved Joint Origin Generation
+- ✅ Joint-Local Axis Calculation
+- ✅ Automatic Parent/Child Joint Orientation
+- ✅ Correct Reversed-Joint Motion Semantics
+- ✅ Link-Local Visual/Collision Transforms
+- ✅ Improved Joint Limit Handling
+- ✅ Stronger URDF Validation
+- ✅ Added Joint-Frame Regression Tests
+- ✅ Preserved v0.1.1 Material Pipeline
+- ✅ Improved Export Architecture
 
 ---
 
-# 🔜 Coming in the Next Release
+# 🔜 Next Development Focus
 
-Development is now focused on improving the robot kinematic pipeline and export reliability.
+Future development will continue improving export reliability and simulation compatibility, including:
 
-Planned improvements include:
+- 🧩 More complete Fusion joint-type coverage
+- 📦 Robust mesh/resource URI handling
+- ⚙️ Improved inertial and center-of-mass frame handling
+- 🤖 More extensive Gazebo validation
+- 🧪 Expanded end-to-end export tests
+- 🎨 Additional material and rendering improvements
+- ⚡ Export performance and stability improvements
 
-- 🔗 Complete joint generation pipeline
-- 📐 Accurate joint origin extraction
-- 🧭 Improved joint orientation handling
-- ⚙️ Better URDF/Xacro validation
-- 🤖 More reliable ROS 2 description packages
-- 🎨 Additional UI improvements
-- ⚡ Faster export performance
-- 🛠️ General bug fixes and stability improvements
-
-Stay tuned for the next release!
