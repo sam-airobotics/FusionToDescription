@@ -30,14 +30,14 @@ startup_thread = None
 startup_stop = None
 startup_event = None
 startup_splash_active = False
-launching_command = False
+programmatic_launch_pending = False
 
 cmd_def = None
 control = None
 
 
 class CommandStartingHandler(adsk.core.ApplicationCommandEventHandler):
-    """Shows the splash whenever the FusionToDescription command is requested."""
+    """Intercepts every user launch so the splash can run first."""
 
     def __init__(self):
         super().__init__()
@@ -46,28 +46,25 @@ class CommandStartingHandler(adsk.core.ApplicationCommandEventHandler):
         global startup_thread
         global startup_stop
         global startup_splash_active
-        global launching_command
+        global programmatic_launch_pending
 
         try:
             event_args = adsk.core.ApplicationCommandEventArgs.cast(args)
 
-            # Only intercept FusionToDescription. Every control that references
-            # this command definition (toolbar button or dropdown item) uses
-            # the same command ID.
             if event_args.commandId != config.COMMAND_ID:
                 return
 
-            # The delayed launch calls cmd_def.execute() programmatically.
-            # Allow that execution through instead of starting another splash.
-            if launching_command:
-                launching_command = False
+            # This is the second pass created by cmd_def.execute() after the
+            # splash. Allow it to continue normally.
+            if programmatic_launch_pending:
+                programmatic_launch_pending = False
                 return
 
-            # Cancel the normal command launch. The command will be started
-            # again from the custom event after the five-second splash.
+            # Cancel the user's immediate launch. A custom event will launch
+            # the same command again after the five-second splash.
             event_args.isCanceled = True
 
-            # Ignore repeated clicks while the current splash is active.
+            # Do not start another timer if the splash is already active.
             if startup_splash_active:
                 return
 
@@ -92,15 +89,42 @@ class CommandStartingHandler(adsk.core.ApplicationCommandEventHandler):
             )
 
 
-class StartupSplashEventHandler(adsk.core.CustomEventHandler):
-    """Starts the FusionToDescription command after the splash delay."""
+class CommandTerminatedHandler(adsk.core.ApplicationCommandEventHandler):
+    """Resets splash/launch state after every exporter command termination."""
 
     def __init__(self):
         super().__init__()
 
     def notify(self, args):
         global startup_splash_active
-        global launching_command
+        global programmatic_launch_pending
+
+        try:
+            event_args = adsk.core.ApplicationCommandEventArgs.cast(args)
+
+            if event_args.commandId != config.COMMAND_ID:
+                return
+
+            startup_splash_active = False
+            programmatic_launch_pending = False
+            splash.hide()
+
+        except Exception:
+            Logger.error(
+                f"Failed to reset exporter command state: "
+                f"{traceback.format_exc()}"
+            )
+
+
+class StartupSplashEventHandler(adsk.core.CustomEventHandler):
+    """Starts the exporter command after the splash delay."""
+
+    def __init__(self):
+        super().__init__()
+
+    def notify(self, args):
+        global startup_splash_active
+        global programmatic_launch_pending
 
         try:
             if not cmd_def or not cmd_def.isValid:
@@ -108,13 +132,18 @@ class StartupSplashEventHandler(adsk.core.CustomEventHandler):
                 splash.hide()
                 return
 
-            # The commandStarting handler will see this flag and allow the
-            # programmatic execution to continue.
-            launching_command = True
-            cmd_def.execute()
+            # The next commandStarting event belongs to this programmatic
+            # launch, so it must not be canceled or start another splash.
+            programmatic_launch_pending = True
+
+            if not cmd_def.execute():
+                programmatic_launch_pending = False
+                startup_splash_active = False
+                splash.hide()
+                Logger.error("FusionToDescription command execution was rejected.")
 
         except Exception:
-            launching_command = False
+            programmatic_launch_pending = False
             startup_splash_active = False
             splash.hide()
             Logger.error(
@@ -151,7 +180,7 @@ def _wait_for_splash():
 
 
 def start():
-    """Register the export command and its recurring startup splash behavior."""
+    """Register the export command and recurring splash behavior."""
     global cmd_def, control, startup_event
 
     app, ui = _init_fusion_ui()
@@ -159,15 +188,14 @@ def start():
         return
 
     try:
-        # Register a custom event used to safely return to Fusion's main
-        # thread after the five-second delay.
+        # Custom events safely return control from the worker thread to Fusion's
+        # main thread.
         startup_event = app.registerCustomEvent(STARTUP_SPLASH_EVENT)
         if startup_event:
             startup_handler = StartupSplashEventHandler()
             startup_event.add(startup_handler)
             handlers.append(startup_handler)
 
-        # Get icon folder
         icon_folder = os.path.join(
             os.path.dirname(__file__),
             "..",
@@ -175,7 +203,6 @@ def start():
             "icons"
         )
 
-        # Create command definition
         cmd_def = ui.commandDefinitions.addButtonDefinition(
             config.COMMAND_ID,
             config.COMMAND_NAME,
@@ -195,11 +222,16 @@ def start():
         cmd_def.commandCreated.add(on_created)
         handlers.append(on_created)
 
-        # Intercept every user invocation of this command. This catches both
-        # the toolbar control and the command entry inside the dropdown.
+        # Intercept every user invocation from the toolbar button or dropdown.
         command_starting_handler = CommandStartingHandler()
         ui.commandStarting.add(command_starting_handler)
         handlers.append(command_starting_handler)
+
+        # Explicitly reset state after the exporter closes, regardless of
+        # whether the user clicks OK, Cancel, or another command terminates it.
+        command_terminated_handler = CommandTerminatedHandler()
+        ui.commandTerminated.add(command_terminated_handler)
+        handlers.append(command_terminated_handler)
 
         panel = ui.allToolbarPanels.itemById(config.PANEL_ID)
 
@@ -226,14 +258,14 @@ def start():
 def stop():
     """Stop the export command and clean up startup resources."""
     global control, cmd_def, startup_event, startup_thread, startup_stop
-    global startup_splash_active, launching_command
+    global startup_splash_active, programmatic_launch_pending
 
     try:
         if startup_stop:
             startup_stop.set()
 
         startup_splash_active = False
-        launching_command = False
+        programmatic_launch_pending = False
 
         if app and startup_event:
             try:
