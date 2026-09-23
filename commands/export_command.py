@@ -13,6 +13,7 @@ from .. import config
 from ..utils.logger import Logger
 
 from .command_created_handler import CommandCreatedHandler
+from .ui import splash
 
 
 # Global state
@@ -27,7 +28,7 @@ control = None
 
 def _init_fusion_ui():
     """Initialize Fusion app and UI references.
-    
+
     Returns:
         Tuple of (app, ui) or (None, None) if unavailable
     """
@@ -40,10 +41,7 @@ def _init_fusion_ui():
 
 
 def start():
-    """Start the export command.
-    
-    Creates the command button and registers event handlers.
-    """
+    """Start the export command and display the startup logo."""
     global cmd_def, control
 
     app, ui = _init_fusion_ui()
@@ -51,6 +49,9 @@ def start():
         return
 
     try:
+        # Display the FusionToDescription logo before the export dialog is opened.
+        splash.show(ui)
+
         # Get icon folder
         icon_folder = os.path.join(
             os.path.dirname(__file__),
@@ -78,9 +79,6 @@ def start():
         handlers.append(on_created)
 
         # Add command to toolbar
-        # panel = ui.allToolbarPanels.itemById(config.PANEL_ID)
-        # control = panel.controls.addCommand(cmd_def)
-
         panel = ui.allToolbarPanels.itemById(config.PANEL_ID)
 
         if panel is None:
@@ -107,13 +105,12 @@ def start():
 
 
 def stop():
-    """Stop the export command.
-    
-    Removes the command button and cleans up handlers.
-    """
+    """Stop the export command and clean up the startup splash."""
     global control, cmd_def
 
     try:
+        splash.stop()
+
         if control:
             control.deleteMe()
             control = None
