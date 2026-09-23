@@ -7,6 +7,8 @@ from typing import Any
 import adsk.core
 import adsk.fusion
 
+from .origin_utils import compute_relative_pose, transform_vector_to_frame
+
 app = adsk.core.Application.get()
 
 
@@ -23,7 +25,13 @@ def _sanitize_name(value):
 
 
 class JointParser:
-    """Parse Fusion joints into occurrence-consistent ROS joint records."""
+    """Parse Fusion joints into frame-correct ROS joint records.
+
+    Fusion occurrences define link frames. Fusion joint geometry defines the
+    joint frame. The exporter keeps those two frames separate: the joint
+    origin is parent->joint, while the child link visual/collision origin is
+    joint->child. This avoids applying an occurrence transform twice.
+    """
 
     TYPE_NAMES = {0: "fixed", 1: "revolute", 2: "prismatic"}
     SUPPORTED_TYPES = {0, 1, 2}
@@ -59,7 +67,11 @@ class JointParser:
         if fusion_type not in self.SUPPORTED_TYPES:
             raise ValueError(f"Joint '{joint.name}' uses unsupported Fusion type '{fusion_type}'.")
 
-        return {
+        first_frame = self._matrix_dict(first.transform2)
+        second_frame = self._matrix_dict(second.transform2)
+        joint_frame = self._joint_frame(joint, fusion_type)
+
+        record = {
             "name": _sanitize_name(joint.name),
             "fusion_name": joint.name,
             "type": self.TYPE_NAMES[fusion_type],
@@ -67,10 +79,16 @@ class JointParser:
             "child": self._occurrence_name(first),
             "parent_path": self._occurrence_path(second),
             "child_path": self._occurrence_path(first),
-            "origin": self._joint_origin(joint, second, first, fusion_type),
-            "axis": self._joint_axis(joint, fusion_type),
+            "_parent_frame": second_frame,
+            "_child_frame": first_frame,
+            "_joint_frame": joint_frame,
+            "_axis_world": self._motion_axis(joint, fusion_type),
+            "origin": {},
+            "axis": {},
             "limits": self._joint_limits(joint, fusion_type),
         }
+        self._finalize_record(record)
+        return record
 
     @staticmethod
     def _occurrence(joint, attr):
@@ -81,9 +99,7 @@ class JointParser:
 
     @staticmethod
     def _occurrence_path(occurrence):
-        return getattr(occurrence, "fullPathName", None) or getattr(
-            getattr(occurrence, "component", None), "name", ""
-        )
+        return getattr(occurrence, "fullPathName", None) or getattr(getattr(occurrence, "component", None), "name", "")
 
     @staticmethod
     def _occurrence_name(occurrence):
@@ -108,6 +124,81 @@ class JointParser:
         raise ValueError(f"Unable to determine joint type for '{joint.name}'.")
 
     @staticmethod
+    def _matrix_dict(matrix):
+        if matrix is None:
+            return None
+        translation = matrix.translation
+        return {
+            "translation": {"x": translation.x, "y": translation.y, "z": translation.z},
+            "rotation": {
+                "r11": matrix.getCell(0, 0), "r12": matrix.getCell(0, 1), "r13": matrix.getCell(0, 2),
+                "r21": matrix.getCell(1, 0), "r22": matrix.getCell(1, 1), "r23": matrix.getCell(1, 2),
+                "r31": matrix.getCell(2, 0), "r32": matrix.getCell(2, 1), "r33": matrix.getCell(2, 2),
+            },
+        }
+
+    @staticmethod
+    def _vector_dict(vector):
+        if vector is None:
+            return None
+        return {"x": float(vector.x), "y": float(vector.y), "z": float(vector.z)}
+
+    @classmethod
+    def _frame_from_geometry(cls, geometry):
+        if geometry is None:
+            return None
+        try:
+            transform = getattr(geometry, "transform", None)
+            if transform is not None:
+                frame = cls._matrix_dict(transform)
+                if frame is not None:
+                    return frame
+        except (AttributeError, RuntimeError):
+            pass
+        try:
+            origin = geometry.origin
+            x_axis = geometry.secondaryAxisVector
+            y_axis = geometry.thirdAxisVector
+            z_axis = geometry.primaryAxisVector
+        except (AttributeError, RuntimeError):
+            return None
+        if any(value is None for value in (origin, x_axis, y_axis, z_axis)):
+            return None
+        return {
+            "translation": {"x": origin.x, "y": origin.y, "z": origin.z},
+            "rotation": {
+                "r11": x_axis.x, "r12": y_axis.x, "r13": z_axis.x,
+                "r21": x_axis.y, "r22": y_axis.y, "r23": z_axis.y,
+                "r31": x_axis.z, "r32": y_axis.z, "r33": z_axis.z,
+            },
+        }
+
+    @classmethod
+    def _joint_frame(cls, joint, fusion_type):
+        for attr in ("geometryOneTransform", "geometryTwoTransform"):
+            try:
+                frame = cls._matrix_dict(getattr(joint, attr))
+            except (AttributeError, RuntimeError):
+                frame = None
+            if frame is not None:
+                return frame
+        try:
+            frame = cls._matrix_dict(getattr(joint, "transform"))
+        except (AttributeError, RuntimeError):
+            frame = None
+        if frame is not None:
+            return frame
+        for attr in ("geometryOrOriginOne", "geometryOrOriginTwo"):
+            try:
+                entity = getattr(joint, attr)
+            except (AttributeError, RuntimeError):
+                continue
+            frame = cls._frame_from_geometry(entity)
+            if frame is not None:
+                return frame
+        return cls._frame_from_geometry(cls._origin_geometry(joint))
+
+    @staticmethod
     def _origin_geometry(joint):
         try:
             geometry = joint.geometry
@@ -115,7 +206,7 @@ class JointParser:
                 return geometry
         except (AttributeError, RuntimeError):
             pass
-        for attr in ("geometryOrOriginTwo", "geometryOrOriginOne"):
+        for attr in ("geometryOrOriginOne", "geometryOrOriginTwo"):
             try:
                 value = getattr(joint, attr)
             except (AttributeError, RuntimeError):
@@ -130,30 +221,19 @@ class JointParser:
             return value
         return None
 
-    @classmethod
-    def _joint_origin(cls, joint, parent_occurrence, child_occurrence, fusion_type):
-        geometry = cls._origin_geometry(joint)
-        if geometry is None:
-            if fusion_type == 0:
-                return cls._relative_pose(parent_occurrence.transform2, child_occurrence.transform2)
-            raise ValueError(f"Joint '{joint.name}' has no usable origin geometry.")
-        point = geometry.origin
-        return cls._compute_joint_origin(
-            cls._matrix_dict(parent_occurrence.transform2),
-            cls._matrix_dict(child_occurrence.transform2),
-            {"x": point.x, "y": point.y, "z": point.z},
-        )
-
     @staticmethod
-    def _joint_axis(joint, fusion_type):
+    def _motion_axis(joint, fusion_type):
         if fusion_type == 0:
             return {"x": 0.0, "y": 0.0, "z": 1.0}
         motion = joint.jointMotion
         vector = motion.rotationAxisVector if fusion_type == 1 else motion.slideDirectionVector
-        magnitude = math.sqrt(vector.x ** 2 + vector.y ** 2 + vector.z ** 2)
+        if vector is None:
+            raise ValueError(f"Joint '{joint.name}' has no usable motion axis vector.")
+        axis = JointParser._vector_dict(vector)
+        magnitude = math.sqrt(axis["x"] ** 2 + axis["y"] ** 2 + axis["z"] ** 2)
         if magnitude <= 1e-12:
             raise ValueError(f"Joint '{joint.name}' has a zero-length motion axis.")
-        return {"x": round(vector.x / magnitude, 6), "y": round(vector.y / magnitude, 6), "z": round(vector.z / magnitude, 6)}
+        return {key: axis[key] / magnitude for key in ("x", "y", "z")}
 
     @staticmethod
     def _joint_limits(joint, fusion_type):
@@ -164,79 +244,49 @@ class JointParser:
         if limits is None:
             return {}
         try:
-            # Disabled minimum/maximum limits mean the joint is unbounded.
             if not limits.isMinimumValueEnabled or not limits.isMaximumValueEnabled:
                 return {}
             lower = float(limits.minimumValue)
             upper = float(limits.maximumValue)
-            if not (math.isfinite(lower) and math.isfinite(upper)) or lower > upper:
+            if not math.isfinite(lower) or not math.isfinite(upper) or lower > upper:
                 return {}
             if fusion_type == 2:
                 lower *= 0.01
                 upper *= 0.01
-            # Never turn an unconfigured limit into 0..0; URDF can represent an
-            # unbounded revolute/prismatic joint by omitting <limit> entirely.
             return {"lower": round(lower, 9), "upper": round(upper, 9), "effort": 1000.0, "velocity": 100.0}
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return {}
 
-    @staticmethod
-    def _matrix_dict(matrix):
-        translation = matrix.translation
-        return {
-            "translation": {"x": translation.x, "y": translation.y, "z": translation.z},
-            "rotation": {
-                "r11": matrix.getCell(0, 0), "r12": matrix.getCell(0, 1), "r13": matrix.getCell(0, 2),
-                "r21": matrix.getCell(1, 0), "r22": matrix.getCell(1, 1), "r23": matrix.getCell(1, 2),
-                "r31": matrix.getCell(2, 0), "r32": matrix.getCell(2, 1), "r33": matrix.getCell(2, 2),
-            },
-        }
-
-    @staticmethod
-    def _transpose(r):
-        return {"r11": r["r11"], "r12": r["r21"], "r13": r["r31"], "r21": r["r12"], "r22": r["r22"], "r23": r["r32"], "r31": r["r13"], "r32": r["r23"], "r33": r["r33"]}
-
-    @staticmethod
-    def _multiply_rotation(a, b):
-        return {f"r{i}{j}": sum(a[f"r{i}{k}"] * b[f"r{k}{j}"] for k in (1, 2, 3)) for i in (1, 2, 3) for j in (1, 2, 3)}
-
-    @staticmethod
-    def _rotate(r, v):
-        return {
-            "x": r["r11"] * v["x"] + r["r12"] * v["y"] + r["r13"] * v["z"],
-            "y": r["r21"] * v["x"] + r["r22"] * v["y"] + r["r23"] * v["z"],
-            "z": r["r31"] * v["x"] + r["r32"] * v["y"] + r["r33"] * v["z"],
-        }
-
     @classmethod
-    def _compute_joint_origin(cls, parent, child, joint_position):
-        delta = {axis: (joint_position[axis] - parent["translation"][axis]) * 0.01 for axis in ("x", "y", "z")}
-        parent_rt = cls._transpose(parent["rotation"])
-        translation = cls._rotate(parent_rt, delta)
-        rotation = cls._multiply_rotation(parent_rt, child["rotation"])
-        return cls._pose(translation, rotation)
+    def _finalize_record(cls, record):
+        parent_frame = record.get("_parent_frame")
+        child_frame = record.get("_child_frame")
+        joint_frame = record.get("_joint_frame") or child_frame
 
-    @classmethod
-    def _relative_pose(cls, parent_matrix, child_matrix):
-        parent = cls._matrix_dict(parent_matrix)
-        child = cls._matrix_dict(child_matrix)
-        delta = {axis: (child["translation"][axis] - parent["translation"][axis]) * 0.01 for axis in ("x", "y", "z")}
-        parent_rt = cls._transpose(parent["rotation"])
-        return cls._pose(cls._rotate(parent_rt, delta), cls._multiply_rotation(parent_rt, child["rotation"]))
-
-    @staticmethod
-    def _pose(translation, rotation):
-        r11, r21, r31 = rotation["r11"], rotation["r21"], rotation["r31"]
-        sy = math.sqrt(r11 * r11 + r21 * r21)
-        if sy >= 1e-6:
-            roll = math.atan2(rotation["r32"], rotation["r33"])
-            pitch = math.atan2(-r31, sy)
-            yaw = math.atan2(r21, r11)
+        if parent_frame is not None and joint_frame is not None:
+            record["origin"] = compute_relative_pose(parent_frame, joint_frame)
         else:
-            roll = math.atan2(-rotation["r23"], rotation["r22"])
-            pitch = math.atan2(-r31, sy)
-            yaw = 0.0
-        return {
-            "x": round(translation["x"], 9), "y": round(translation["y"], 9), "z": round(translation["z"], 9),
-            "roll": round(roll, 9), "pitch": round(pitch, 9), "yaw": round(yaw, 9),
-        }
+            record["origin"] = {"x": 0.0, "y": 0.0, "z": 0.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0}
+
+        if record["type"] in ("revolute", "prismatic"):
+            axis_world = record.get("_axis_world")
+            record["axis"] = (
+                transform_vector_to_frame(joint_frame, axis_world, normalize=True)
+                if axis_world is not None and joint_frame is not None
+                else {"x": 0.0, "y": 0.0, "z": 1.0}
+            )
+        else:
+            record["axis"] = {"x": 0.0, "y": 0.0, "z": 1.0}
+
+        if joint_frame is not None and child_frame is not None:
+            record["_child_origin"] = compute_relative_pose(joint_frame, child_frame)
+        else:
+            record["_child_origin"] = {"x": 0.0, "y": 0.0, "z": 0.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0}
+        return record
+
+    @classmethod
+    def finalize_records(cls, records):
+        """Recompute frame-dependent data after parent/child orientation."""
+        for record in records:
+            cls._finalize_record(record)
+        return records
