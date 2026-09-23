@@ -29,28 +29,97 @@ handlers = []
 startup_thread = None
 startup_stop = None
 startup_event = None
+startup_splash_active = False
+launching_command = False
 
 cmd_def = None
 control = None
 
 
-class StartupSplashEventHandler(adsk.core.CustomEventHandler):
-    """Opens the FusionToDescription dialog after the splash delay."""
+class CommandStartingHandler(adsk.core.ApplicationCommandEventHandler):
+    """Shows the splash whenever the FusionToDescription command is requested."""
 
     def __init__(self):
         super().__init__()
 
     def notify(self, args):
-        global startup_event
+        global startup_thread
+        global startup_stop
+        global startup_splash_active
+        global launching_command
 
         try:
-            splash.hide()
+            event_args = adsk.core.ApplicationCommandEventArgs.cast(args)
 
-            if cmd_def and cmd_def.isValid:
-                cmd_def.execute()
+            # Only intercept FusionToDescription. Every control that references
+            # this command definition (toolbar button or dropdown item) uses
+            # the same command ID.
+            if event_args.commandId != config.COMMAND_ID:
+                return
+
+            # The delayed launch calls cmd_def.execute() programmatically.
+            # Allow that execution through instead of starting another splash.
+            if launching_command:
+                launching_command = False
+                return
+
+            # Cancel the normal command launch. The command will be started
+            # again from the custom event after the five-second splash.
+            event_args.isCanceled = True
+
+            # Ignore repeated clicks while the current splash is active.
+            if startup_splash_active:
+                return
+
+            startup_splash_active = True
+            splash.show(ui)
+
+            if startup_stop:
+                startup_stop.set()
+
+            startup_stop = threading.Event()
+            startup_thread = threading.Thread(
+                target=_wait_for_splash,
+                name="FusionToDescriptionStartup",
+                daemon=True,
+            )
+            startup_thread.start()
+
         except Exception:
             Logger.error(
-                f"Failed to open export dialog after splash: {traceback.format_exc()}"
+                f"Failed to handle FusionToDescription command start: "
+                f"{traceback.format_exc()}"
+            )
+
+
+class StartupSplashEventHandler(adsk.core.CustomEventHandler):
+    """Starts the FusionToDescription command after the splash delay."""
+
+    def __init__(self):
+        super().__init__()
+
+    def notify(self, args):
+        global startup_splash_active
+        global launching_command
+
+        try:
+            if not cmd_def or not cmd_def.isValid:
+                startup_splash_active = False
+                splash.hide()
+                return
+
+            # The commandStarting handler will see this flag and allow the
+            # programmatic execution to continue.
+            launching_command = True
+            cmd_def.execute()
+
+        except Exception:
+            launching_command = False
+            startup_splash_active = False
+            splash.hide()
+            Logger.error(
+                f"Failed to open export dialog after splash: "
+                f"{traceback.format_exc()}"
             )
 
 
@@ -66,14 +135,15 @@ def _init_fusion_ui():
     return app, ui
 
 
-def _start_splash_sequence():
-    """Keep the splash visible for five seconds, then return to Fusion's main thread."""
+def _wait_for_splash():
+    """Wait without blocking Fusion, then queue the command on Fusion's main thread."""
     try:
-        if startup_stop.wait(STARTUP_SPLASH_DELAY):
+        if startup_stop and startup_stop.wait(STARTUP_SPLASH_DELAY):
             return
 
         if app:
             app.fireCustomEvent(STARTUP_SPLASH_EVENT)
+
     except Exception:
         Logger.error(
             f"Startup splash sequence failed: {traceback.format_exc()}"
@@ -81,32 +151,21 @@ def _start_splash_sequence():
 
 
 def start():
-    """Start the export command and show the startup logo for five seconds."""
-    global cmd_def, control, startup_event, startup_thread, startup_stop
+    """Register the export command and its recurring startup splash behavior."""
+    global cmd_def, control, startup_event
 
     app, ui = _init_fusion_ui()
     if not ui:
         return
 
     try:
-        # Display the centered logo immediately.
-        splash.show(ui)
-
-        # Register an event so the command dialog is opened safely on
-        # Fusion's main thread after the five-second delay.
+        # Register a custom event used to safely return to Fusion's main
+        # thread after the five-second delay.
         startup_event = app.registerCustomEvent(STARTUP_SPLASH_EVENT)
         if startup_event:
             startup_handler = StartupSplashEventHandler()
             startup_event.add(startup_handler)
             handlers.append(startup_handler)
-
-        startup_stop = threading.Event()
-        startup_thread = threading.Thread(
-            target=_start_splash_sequence,
-            name="FusionToDescriptionStartup",
-            daemon=True,
-        )
-        startup_thread.start()
 
         # Get icon folder
         icon_folder = os.path.join(
@@ -136,6 +195,12 @@ def start():
         cmd_def.commandCreated.add(on_created)
         handlers.append(on_created)
 
+        # Intercept every user invocation of this command. This catches both
+        # the toolbar control and the command entry inside the dropdown.
+        command_starting_handler = CommandStartingHandler()
+        ui.commandStarting.add(command_starting_handler)
+        handlers.append(command_starting_handler)
+
         panel = ui.allToolbarPanels.itemById(config.PANEL_ID)
 
         if panel is None:
@@ -161,10 +226,14 @@ def start():
 def stop():
     """Stop the export command and clean up startup resources."""
     global control, cmd_def, startup_event, startup_thread, startup_stop
+    global startup_splash_active, launching_command
 
     try:
         if startup_stop:
             startup_stop.set()
+
+        startup_splash_active = False
+        launching_command = False
 
         if app and startup_event:
             try:
