@@ -120,4 +120,7 @@ def compute_joint_origin(parent_transform, child_transform, joint_position=None,
         target = child
     else:
         target = parent
-    return compute_relative_pose(parent, target)
+    # Preserve the historical helper contract: callers of this legacy API
+    # already provide distances in their expected units. The joint pipeline
+    # itself uses compute_relative_pose() directly with Fusion centimeters.
+    return compute_relative_pose(parent, target, unit_scale=1.0)
