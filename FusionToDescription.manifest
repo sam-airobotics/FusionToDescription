@@ -6,7 +6,7 @@
   "description": {
     "": "Fusion 360 to ROS2 Description Package Exporter"
   },
-  "version": "0.1.2",
+  "version": "0.1.3",
   "runOnStartup": false,
   "supportedOS": "windows|mac|linux"
 }
