@@ -11,6 +11,7 @@ from .ui.general_tab import build_general_tab
 from .ui.properties_tab import build_properties_tab
 from .ui.simulation_tab import build_simulation_tab
 from .ui.advanced_tab import build_advanced_tab
+from .ui import splash
 
 from .execute_handler import ExecuteHandler
 from .input_changed_handler import InputChangedHandler
@@ -20,8 +21,8 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
     """Handles the command created event to build the dialog UI."""
 
     def __init__(self, app_ref, ui_ref, handlers_list):
-        """Initialize with app, UI, and handlers list references.
-        
+        """Initialize with app, UI, and handlers list.
+
         Args:
             app_ref: Callable that returns current app
             ui_ref: Callable that returns current UI
@@ -34,7 +35,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
     def notify(self, args):
         """Handle command created event.
-        
+
         Args:
             args: CommandCreatedEventArgs
         """
@@ -42,6 +43,9 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             ui = self.get_ui()
             if not ui:
                 return
+
+            # Hide the startup logo immediately before the command dialog opens.
+            splash.hide()
 
             cmd = args.command
 
