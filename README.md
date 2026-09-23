@@ -1,34 +1,90 @@
-# 🚀 FusionToDescription v0.1.2
+# 🚀 FusionToDescription v0.1.3
 
-## Joint Pipeline Update
+## Export Path & Browse Feature
 
-Version **0.1.2** introduces the redesigned **joint and kinematic frame pipeline**, replacing the earlier joint-generation approach with a frame-aware Fusion 360 → URDF workflow.
+Version **0.1.3** introduces an improved **Export Path workflow** with an integrated **Browse** option in the FusionToDescription export dialog.
 
-This release focuses on accurate joint origins, joint axes, parent/child orientation, and link-local geometry transforms so exported robot descriptions preserve the intended Fusion 360 assembly structure.
+Users can now select the destination folder through the Fusion 360 folder picker instead of entering the complete export path manually.
+
+The selected folder is displayed directly in the **Export Path** field and is then used as the destination for the generated ROS 2 description package.
 
 ---
 
 # ✨ What's New
 
-## 🔗 Joint Pipeline Overhaul
+## 📁 Export Path Browse
 
-FusionToDescription now uses a dedicated joint-frame pipeline for converting Fusion 360 assembly joints into ROS 2 / URDF joints.
+The General tab now provides a dedicated Browse control next to the Export Path field.
 
-The pipeline distinguishes between:
+The interface follows this layout:
 
-- Fusion occurrence / component frames
-- Fusion joint geometry frames
-- URDF parent frames
-- URDF joint frames
-- URDF child-link frames
+```text
+Robot Name  [____________________________]
 
-This prevents assembly/world transforms from being incorrectly reused as link-local transforms.
+Export Path [____________________________]   [Browse]
+```
+
+The Browse control is integrated into the same row as the Export Path field, keeping the export configuration compact and easy to use.
+
+### Browse Workflow
+
+1. Open **FusionToDescription**.
+2. Go to the **General** tab.
+3. Locate **Export Path**.
+4. Click **Browse**.
+5. Select the destination folder from the Fusion 360 folder dialog.
+6. The selected folder path is automatically inserted into the Export Path field.
+7. Continue with the export.
+
+This eliminates the need to manually type or paste long filesystem paths.
+
+---
+
+## 🧭 Fusion 360 Folder Selection
+
+The Browse feature uses Fusion 360's native folder-selection dialog.
+
+The exporter:
+
+- Opens a native Fusion 360 folder picker
+- Allows the user to select an existing destination folder
+- Retrieves the selected filesystem path
+- Updates the Export Path field automatically
+- Keeps the selected path available for the export operation
+- Safely handles dialog cancellation
+
+The Browse button behaves as a momentary action and does not remain selected after the folder-selection operation.
+
+---
+
+## 🧩 Table-Based Export Path Layout
+
+The Export Path controls are arranged using Fusion 360's `TableCommandInput` API.
+
+The row contains:
+
+- Export Path label
+- Editable Export Path textbox
+- Spacing between the textbox and button
+- Browse button
+
+The Export Path textbox is retrieved from its table cell when the Browse operation completes, ensuring that the selected folder is written to the correct UI input.
+
+This keeps the Browse functionality compatible with the compact single-row layout of the export dialog.
+
+---
+
+# 🔗 Joint Pipeline
+
+FusionToDescription continues to include the redesigned **joint and kinematic frame pipeline** introduced in **v0.1.2**.
+
+The pipeline converts Fusion 360 assembly joints into ROS 2 / URDF joints while preserving the intended assembly structure.
 
 ---
 
 ## 📐 Accurate Joint Origins
 
-Joint origins are now calculated from the relationship between the **parent occurrence frame** and the **Fusion joint frame**.
+Joint origins are calculated from the relationship between the **parent occurrence frame** and the **Fusion joint frame**.
 
 Conceptually:
 
@@ -44,13 +100,13 @@ parent link → joint frame
 
 rather than an assembly/world-space pose.
 
-This is especially important for robots containing nested components, rotated assemblies, or joints whose geometry does not coincide with a component origin.
+This is important for robots containing nested components, rotated assemblies, or joints whose geometry does not coincide with a component origin.
 
 ---
 
 ## 🧭 Improved Joint Axis Generation
 
-Movable-joint axes are now expressed in the generated **joint frame**.
+Movable-joint axes are expressed in the generated **joint frame**.
 
 The pipeline uses Fusion joint motion information where available and transforms the motion axis into the correct joint coordinate system.
 
@@ -66,7 +122,7 @@ This improves compatibility with ROS 2 controllers, Gazebo, RViz, and downstream
 
 ## 🔄 Correct Parent / Child Orientation
 
-Joint orientation is now resolved from the complete joint graph instead of assuming that Fusion's endpoint ordering is already suitable for URDF.
+Joint orientation is resolved from the complete joint graph instead of assuming that Fusion's endpoint ordering is already suitable for URDF.
 
 The pipeline:
 
@@ -89,13 +145,11 @@ lower_new = -upper_old
 upper_new = -lower_old
 ```
 
-This keeps the generated kinematics physically consistent after parent/child reversal.
-
 ---
 
 ## 🧩 Correct Link-Local Geometry Frames
 
-The exporter now separates the **joint transform** from the **child link geometry transform**.
+The exporter separates the **joint transform** from the **child link geometry transform**.
 
 The generated relationship is:
 
@@ -111,7 +165,7 @@ child link / CAD component frame
 visual / collision geometry
 ```
 
-The child link's visual/collision origin is therefore calculated relative to the joint frame:
+The child link's visual/collision origin is calculated relative to the joint frame:
 
 ```text
 child_origin = joint_frame⁻¹ × child_component_frame
@@ -119,23 +173,19 @@ child_origin = joint_frame⁻¹ × child_component_frame
 
 This prevents the common **double-transform** problem where an assembly/world transform is applied both to the joint and to the link geometry.
 
-It also supports CAD designs where the component origin is not coincident with the joint origin.
-
 ---
 
 ## 🧱 Assembly-Context Transform Handling
 
-The joint pipeline now uses Fusion occurrence assembly-context transforms where appropriate.
+The joint pipeline uses Fusion occurrence assembly-context transforms where appropriate.
 
-This is important for components that are positioned or rotated through an assembly occurrence rather than being located at their component-local origin.
-
-The exporter no longer treats a component's world/assembly transform as if it were automatically a URDF link-local visual transform.
+This supports components that are positioned or rotated through an assembly occurrence rather than being located at their component-local origin.
 
 ---
 
 ## ⚙️ Improved Joint Data Model
 
-Joint records now retain the internal frame information required to complete the kinematic conversion.
+Joint records retain the internal frame information required to complete the kinematic conversion.
 
 The pipeline tracks:
 
@@ -150,13 +200,11 @@ The pipeline tracks:
 
 Frame-dependent values are finalized after parent/child orientation has been resolved.
 
-This keeps graph traversal and coordinate-frame calculations separate and makes the export pipeline easier to validate.
-
 ---
 
 # 🧪 Validation & Regression Tests
 
-Version **0.1.2** adds regression coverage for the new joint-frame pipeline.
+Version **0.1.2** introduced regression coverage for the joint-frame pipeline.
 
 Tests cover:
 
@@ -174,13 +222,13 @@ Tests cover:
 - Revolute limit inversion
 - Prismatic limit inversion
 
-These tests specifically target the transform errors that can cause exported robots to appear displaced, duplicated, or incorrectly oriented in simulation.
+These tests target transform errors that can cause exported robots to appear displaced, duplicated, or incorrectly oriented in simulation.
 
 ---
 
 # ✅ Improved Export Validation
 
-The package validation layer now checks additional joint and link data.
+The package validation layer checks additional joint and link data.
 
 Validation includes:
 
@@ -215,10 +263,10 @@ Visualization colors remain independent from Fusion materials.
 
 This enables:
 
-- Preserve original Fusion material names
-- Assign visualization colors independently
-- Better compatibility with RViz
-- Better compatibility with Gazebo
+- Preservation of original Fusion material names
+- Independent visualization colors
+- Better RViz compatibility
+- Better Gazebo compatibility
 - Cleaner material management
 
 ---
@@ -235,21 +283,34 @@ FusionToDescription generates a ROS 2 description package containing:
 - Launch files
 - ROS 2 Control configuration (optional)
 
+The package is exported to the destination selected through the **Export Path** field.
+
 ---
 
 # ⚠️ Important Simulation Note
 
 The joint-frame pipeline is validated through Python syntax checks and mathematical regression tests.
 
-Full Fusion 360 API execution and Gazebo/RViz simulation remain runtime validation steps because the Autodesk Fusion environment is required to exercise the complete export process.
+The Browse workflow and complete export process require the Autodesk Fusion 360 runtime for full validation.
 
-Generated packages should therefore still be tested in the target ROS 2 / Gazebo environment after export.
+Generated packages should still be tested in the target ROS 2 / Gazebo environment after export.
 
 ---
 
 # 📁 Export Location
 
-Generated packages are exported directly to the selected destination.
+The export destination can now be selected directly from the FusionToDescription interface.
+
+Use:
+
+```text
+General
+  └── Export Path
+        ├── Path textbox
+        └── Browse
+```
+
+Click **Browse**, select the desired destination folder, and the selected path will be populated automatically.
 
 <p align="center">
 <img src="https://github.com/user-attachments/assets/a2719525-de13-4f5d-835d-5cd502457a16" width="95%">
@@ -257,21 +318,17 @@ Generated packages are exported directly to the selected destination.
 
 ---
 
-# 🚀 Release Highlights — v0.1.2
+# 🚀 Release Highlights — v0.1.3
 
-- ✅ Redesigned Joint Pipeline
-- ✅ Accurate Joint Frame Extraction
-- ✅ Assembly-Context Transform Handling
-- ✅ Improved Joint Origin Generation
-- ✅ Joint-Local Axis Calculation
-- ✅ Automatic Parent/Child Joint Orientation
-- ✅ Correct Reversed-Joint Motion Semantics
-- ✅ Link-Local Visual/Collision Transforms
-- ✅ Improved Joint Limit Handling
-- ✅ Stronger URDF Validation
-- ✅ Added Joint-Frame Regression Tests
-- ✅ Preserved v0.1.1 Material Pipeline
-- ✅ Improved Export Architecture
+- ✅ Added Export Path Browse button
+- ✅ Added native Fusion 360 folder selection
+- ✅ Automatically populate Export Path after folder selection
+- ✅ Kept Browse and Export Path controls on the same row
+- ✅ Improved Export Path UI layout
+- ✅ Added safe Browse dialog cancellation handling
+- ✅ Preserved the v0.1.2 joint-frame pipeline
+- ✅ Preserved joint-frame validation and regression coverage
+- ✅ Preserved v0.1.1 material pipeline
 
 ---
 
