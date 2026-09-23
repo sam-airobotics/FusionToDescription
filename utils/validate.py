@@ -30,6 +30,22 @@ class Validator:
         if self.config.mesh_format.lower() not in ("stl", "obj"):
             self.errors.append(f"Unsupported mesh format: {self.config.mesh_format}")
 
+    @staticmethod
+    def _validate_pose(pose):
+        if not pose:
+            return True
+        return all(
+            math.isfinite(float(pose.get(key, 0.0)))
+            for key in ("x", "y", "z", "roll", "pitch", "yaw")
+        )
+
+    @staticmethod
+    def _validate_axis(axis):
+        if not axis:
+            return False
+        values = [float(axis.get(key, 0.0)) for key in ("x", "y", "z")]
+        return all(math.isfinite(value) for value in values) and math.sqrt(sum(value * value for value in values)) > 1e-9
+
     def _validate_robot(self):
         self._validate_links()
         self._validate_joints()
@@ -53,6 +69,10 @@ class Validator:
                 value = float(link.inertia.get(key, 0.0))
                 if not math.isfinite(value) or value <= 0:
                     self.errors.append(f"Link '{link.name}' has invalid {key} inertia: {value}.")
+            if not self._validate_pose(link.origin):
+                self.errors.append(f"Link '{link.name}' has a non-finite visual/collision origin.")
+            if not self._validate_pose(link.collision.get("origin", {})):
+                self.errors.append(f"Link '{link.name}' has a non-finite collision origin.")
 
     def _validate_joints(self):
         names = set()
@@ -82,10 +102,19 @@ class Validator:
             if joint.parent in adjacency and joint.child in link_names:
                 adjacency[joint.parent].append(joint.child)
 
+            if not self._validate_pose(joint.origin):
+                self.errors.append(f"Joint '{joint.name}' has a non-finite origin.")
+
             if joint.joint_type in ("revolute", "prismatic"):
+                if not self._validate_axis(joint.axis):
+                    self.errors.append(f"Joint '{joint.name}' has an invalid motion axis.")
                 limits = joint.limits or {}
                 if limits:
-                    if float(limits.get("lower", 0.0)) > float(limits.get("upper", 0.0)):
+                    lower = float(limits.get("lower", 0.0))
+                    upper = float(limits.get("upper", 0.0))
+                    if not math.isfinite(lower) or not math.isfinite(upper):
+                        self.errors.append(f"Joint '{joint.name}' has non-finite limits.")
+                    elif lower > upper:
                         self.errors.append(f"Joint '{joint.name}' has lower limit greater than upper limit.")
                 elif joint.joint_type == "revolute":
                     self.warnings.append(f"Revolute joint '{joint.name}' is unbounded; no <limit> will be emitted.")
