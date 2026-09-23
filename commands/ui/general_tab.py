@@ -4,8 +4,6 @@ General tab for the export dialog.
 Includes robot name, export path, ROS distro selection, and output options.
 """
 
-import adsk.core
-
 from ..helpers.ui_builder import (
     create_radio_group,
     create_bool_input,
@@ -38,16 +36,26 @@ def build_general_tab(inputs):
         ""
     )
 
-    # Export path input
-    create_string_input(
-        general_inputs,
+    # Export path + Browse button on the same row.
+    # A TableCommandInput is used to explicitly place both controls
+    # in the same row instead of creating a separate Browse row.
+    export_path_table = general_inputs.addTableCommandInput(
+        "export_path_row",
+        "",
+        2,
+        "8:2"
+    )
+    export_path_table.hasGrid = False
+    export_path_table.minimumVisibleRows = 1
+    export_path_table.maximumVisibleRows = 1
+
+    export_path_input = general_inputs.addStringValueInput(
         "export_path",
         "Export Path",
         ""
     )
+    export_path_table.addCommandInput(export_path_input, 0, 0)
 
-    # Browse button
-    # isCheckBox=False makes this a push button rather than a checkbox.
     browse_button = general_inputs.addBoolValueInput(
         "browse_export_path",
         "Browse",
@@ -55,7 +63,7 @@ def build_general_tab(inputs):
         "",
         False
     )
-    browse_button.isFullWidth = False
+    export_path_table.addCommandInput(browse_button, 0, 1)
 
     # ROS Distro selection
     distro_group = create_group(
