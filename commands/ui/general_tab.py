@@ -15,11 +15,9 @@ from ..helpers.ui_builder import (
 def build_general_tab(inputs):
     """Build the General tab UI.
 
-    Args:
-        inputs: The command's commandInputs container
-
-    Returns:
-        The created TabCommandInput
+    Layout:
+        Robot Name  [____________________________]
+        Export Path [____________________________]  [Browse]
     """
     general_tab = inputs.addTabCommandInput(
         "general_tab",
@@ -28,7 +26,7 @@ def build_general_tab(inputs):
 
     general_inputs = general_tab.children
 
-    # Robot name input
+    # Robot name input.
     create_string_input(
         general_inputs,
         "robot_name",
@@ -36,42 +34,51 @@ def build_general_tab(inputs):
         ""
     )
 
-    # Export Path + Browse button on the same row.
+    # Export Path row.
     #
-    # The Export Path is a normal StringValueCommandInput, so its label
-    # is rendered in the same style as the Robot Name label.
+    # Fusion's TableCommandInput supports read-only StringValueCommandInput
+    # cells for displaying simple text. Use that for the label so it matches
+    # the normal command-input label appearance while keeping the editable
+    # path field and Browse button on the same row.
     #
     # Layout:
-    # Export Path  [________________________]   [Browse]
-    #
-    # A small middle column provides visual spacing between the textbox
-    # and the Browse button.
+    # Export Path [____________________________]  [Browse]
     export_path_table = general_inputs.addTableCommandInput(
         "export_path_row",
         "",
-        3,
-        "72:8:20"
+        4,
+        "18:62:5:15"
     )
     export_path_table.hasGrid = False
+    export_path_table.columnSpacing = 8
     export_path_table.minimumVisibleRows = 1
     export_path_table.maximumVisibleRows = 1
 
+    # Export Path label.
+    export_path_label = general_inputs.addStringValueInput(
+        "export_path_label",
+        "",
+        "Export Path"
+    )
+    export_path_label.isReadOnly = True
+    export_path_table.addCommandInput(export_path_label, 0, 0)
+
+    # Export Path textbox.
     export_path_input = general_inputs.addStringValueInput(
         "export_path",
-        "Export Path",
+        "",
         ""
     )
-    export_path_table.addCommandInput(export_path_input, 0, 0)
+    export_path_table.addCommandInput(export_path_input, 0, 1)
 
-    # Spacer column.
-    spacer = general_inputs.addTextBoxCommandInput(
+    # Spacer between textbox and Browse button.
+    export_path_spacer = general_inputs.addStringValueInput(
         "export_path_spacer",
         "",
-        "",
-        1,
-        True
+        ""
     )
-    export_path_table.addCommandInput(spacer, 0, 1)
+    export_path_spacer.isReadOnly = True
+    export_path_table.addCommandInput(export_path_spacer, 0, 2)
 
     # Browse push button.
     browse_button = general_inputs.addBoolValueInput(
@@ -82,9 +89,9 @@ def build_general_tab(inputs):
         False
     )
     browse_button.isFullWidth = True
-    export_path_table.addCommandInput(browse_button, 0, 2)
+    export_path_table.addCommandInput(browse_button, 0, 3)
 
-    # ROS Distro selection
+    # ROS Distro selection.
     distro_group = create_group(
         general_inputs,
         "distro_group",
@@ -103,7 +110,7 @@ def build_general_tab(inputs):
         ]
     )
 
-    # Generate options
+    # Generate options.
     generate_group = create_group(
         general_inputs,
         "generate_group",
