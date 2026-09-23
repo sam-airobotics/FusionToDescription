@@ -5,12 +5,10 @@ from typing import List, Optional
 
 from .component_parser import get_component_data
 from .joint_parser import JointParser
-from .transform_parser import TransformParser
 from .mass_extractor import get_mass_data
 from .inertia_calculator import calculate_inertia
 from .material_parser import MaterialParser
 from .mesh_exporter import MeshExporter
-from .joint_tree import orient_joints
 from .material import Material
 
 
@@ -21,6 +19,9 @@ class Link:
     material: Material = field(default_factory=Material)
     mass: float = 0.0
     center_of_mass: tuple = (0.0, 0.0, 0.0)
+    # Geometry exported for a link is already expressed in that link's CAD
+    # frame. The assembly placement belongs exclusively to the connecting
+    # joint, so occurrence.transform2 must never be copied here.
     origin: dict = field(default_factory=dict)
     collision: dict = field(default_factory=dict)
     inertia: dict = field(default_factory=dict)
@@ -86,6 +87,9 @@ class RobotModelBuilder:
         ]
 
         link_names = {link.name for link in self.robot.links}
+        # JointParser orients the undirected Fusion joint graph before it
+        # calculates each origin/axis, keeping kinematics consistent with the
+        # final URDF parent/child direction.
         joint_dicts = JointParser().parse()
         unknown = [
             j for j in joint_dicts
@@ -109,24 +113,32 @@ class RobotModelBuilder:
             )
             for j in joint_dicts
         ]
-        orient_joints(self.robot.joints)
 
-        transforms = TransformParser().parse()
-        for link in self.robot.links:
-            link.origin = transforms.get(link.name, transforms.get(link.component_name, {}))
-
+        # IMPORTANT: do not set link.origin from Occurrence.transform2.
+        # The joint origin is the sole assembly-level placement. Reusing
+        # occurrence.transform2 as visual/collision origin moves the same
+        # component twice in RViz/Gazebo.
         MaterialParser().update(self.robot)
 
         mass_data = get_mass_data()
         mass_by_name = {item["name"]: item["mass"] for item in mass_data}
         for link in self.robot.links:
-            link.mass = max(float(mass_by_name.get(link.component_name, mass_by_name.get(link.name, 0.0))), 1e-6)
+            link.mass = max(
+                float(mass_by_name.get(
+                    link.component_name,
+                    mass_by_name.get(link.name, 0.0)
+                )),
+                1e-6,
+            )
             shape = link.collision.get("shape", "Box")
             link.inertia = calculate_inertia(shape, link.mass, link.collision)
 
         exported_meshes = MeshExporter(self.export_directory).export_all()
         expected = {link.mesh for link in self.robot.links if link.mesh}
-        actual = {path.rsplit("/", 1)[-1].rsplit("\\", 1)[-1] for path in exported_meshes}
+        actual = {
+            path.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+            for path in exported_meshes
+        }
         missing = sorted(expected - actual)
         if missing:
             raise RuntimeError("Mesh export incomplete; missing: " + ", ".join(missing))

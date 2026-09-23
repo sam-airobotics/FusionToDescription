@@ -1,14 +1,10 @@
 """Generate a URDF from the normalized RobotModel."""
-
 from .file_writer import FileWriter
 from xml.sax.saxutils import quoteattr
 
-
 class URDFGenerator:
     def __init__(self, robot, package_creator, config=None):
-        self.robot = robot
-        self.package = package_creator
-        self.config = config
+        self.robot, self.package, self.config = robot, package_creator, config
         self.writer = FileWriter(self.package.package_directory())
 
     def generate(self):
@@ -56,11 +52,11 @@ class URDFGenerator:
             f'ixz="{float(inertia.get("ixz", 0.0)):.9g}"/>\n'
         )
         xml += "    </inertial>\n"
-
         if link.mesh:
             uri = self._mesh_uri(link.mesh)
+            # The mesh is link-local. Assembly placement is applied once by the joint.
             xml += f'    <visual name={quoteattr(link.name + "_visual")}>\n'
-            xml += self._origin_xml(link.origin, "      ")
+            xml += self._origin_xml({}, "      ")
             xml += "      <geometry>\n"
             xml += f'        <mesh filename={quoteattr(uri)} scale="0.001 0.001 0.001"/>\n'
             xml += "      </geometry>\n"
@@ -68,7 +64,6 @@ class URDFGenerator:
             if material_name:
                 xml += f'      <material name={quoteattr(material_name)}/>\n'
             xml += "    </visual>\n"
-
         xml += self._collision_geometry(link, uri if link.mesh else None)
         return xml + "  </link>\n"
 
@@ -76,14 +71,10 @@ class URDFGenerator:
         collision = link.collision or {}
         shape = collision.get("shape", "Mesh")
         xml = f'    <collision name={quoteattr(link.name + "_collision")}>\n'
-        xml += self._origin_xml(link.origin, "      ")
+        xml += self._origin_xml({}, "      ")
         xml += "      <geometry>\n"
         if shape == "Box":
-            xml += (
-                f'        <box size="{float(collision.get("length", 0.001)):.9g} '
-                f'{float(collision.get("breadth", 0.001)):.9g} '
-                f'{float(collision.get("height", 0.001)):.9g}"/>\n'
-            )
+            xml += f'        <box size="{float(collision.get("length", 0.001)):.9g} {float(collision.get("breadth", 0.001)):.9g} {float(collision.get("height", 0.001)):.9g}"/>\n'
         elif shape == "Cylinder":
             xml += f'        <cylinder radius="{float(collision.get("radius", 0.0005)):.9g}" length="{float(collision.get("height", 0.001)):.9g}"/>\n'
         elif shape == "Sphere":
@@ -95,8 +86,7 @@ class URDFGenerator:
         return xml + "      </geometry>\n    </collision>\n"
 
     def _generate_joint(self, joint):
-        origin = joint.origin or {}
-        axis = joint.axis or {}
+        origin, axis = joint.origin or {}, joint.axis or {}
         xml = f'  <joint name={quoteattr(joint.name)} type={quoteattr(joint.joint_type)}>\n'
         xml += self._origin_xml(origin, "    ")
         xml += f'    <parent link={quoteattr(joint.parent)}/>\n'
@@ -105,11 +95,7 @@ class URDFGenerator:
             xml += f'    <axis xyz="{float(axis.get("x", 0.0)):.9g} {float(axis.get("y", 0.0)):.9g} {float(axis.get("z", 1.0)):.9g}"/>\n'
             if joint.joint_type in ("revolute", "prismatic") and joint.limits:
                 limits = joint.limits
-                xml += (
-                    f'    <limit lower="{float(limits["lower"]):.9g}" upper="{float(limits["upper"]):.9g}" '
-                    f'effort="{max(float(limits.get("effort", 1.0)), 1e-9):.9g}" '
-                    f'velocity="{max(float(limits.get("velocity", 1.0)), 1e-9):.9g}"/>\n'
-                )
+                xml += f'    <limit lower="{float(limits["lower"]):.9g}" upper="{float(limits["upper"]):.9g}" effort="{max(float(limits.get("effort", 1.0)), 1e-9):.9g}" velocity="{max(float(limits.get("velocity", 1.0)), 1e-9):.9g}"/>\n'
         return xml + "  </joint>\n"
 
     def _mesh_uri(self, mesh):
