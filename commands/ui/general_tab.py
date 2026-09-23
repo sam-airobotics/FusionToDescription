@@ -47,14 +47,15 @@ def build_general_tab(inputs):
     )
 
     # Browse button
+    # isCheckBox=False makes this a push button rather than a checkbox.
     browse_button = general_inputs.addBoolValueInput(
         "browse_export_path",
         "Browse",
-        True,
+        False,
         "",
         False
     )
-    browse_button.isFullWidth = True
+    browse_button.isFullWidth = False
 
     # ROS Distro selection
     distro_group = create_group(
